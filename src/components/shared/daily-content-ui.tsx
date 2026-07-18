@@ -96,12 +96,12 @@ export function DailyContentUI({
     )
 
     return (
-        <div className="">
+        <div className="flex flex-col w-full max-w-full relative">
             {/* Header & Toolbar */}
             <div className="flex flex-col lg:flex-row lg:items-center justify-between gap-4 pb-4 border-b border-border/50">
                 <PageHeader title="Content" className="shrink-0 text-xl font-bold text-chart-1" />
                 <div className="flex items-center flex-wrap gap-3">
-                    <SearchInput value={searchQuery} onValueChange={onSearchChange} placeholder="Search..." className="w-full sm:w-62.5 bg-white rounded-full h-10 shadow-sm border-gray-200" />
+                    <SearchInput value={searchQuery} onValueChange={onSearchChange} placeholder="Search..." className="w-full sm:w-62.5 bg-card rounded-full h-10 shadow-sm border-border" />
                     <FilterBuilder options={filterOptions} filters={filters} onFiltersChange={onFiltersChange} />
                 </div>
             </div>

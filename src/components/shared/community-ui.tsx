@@ -175,7 +175,7 @@ export function CommunityUI({
                 <div className="flex flex-col lg:flex-row lg:items-center justify-between gap-4 pb-4 border-b border-border/50">
                     <PageHeader title="Community" className="shrink-0 text-xl font-bold text-chart-1" />
                     <div className="flex items-center flex-wrap gap-3">
-                        <SearchInput value={searchQuery} onValueChange={onSearchChange} placeholder="Search Groups..." className="w-full sm:w-[250px] bg-white rounded-full h-10 shadow-sm border-gray-200" />
+                        <SearchInput value={searchQuery} onValueChange={onSearchChange} placeholder="Search Groups..." className="w-full sm:w-62.5 bg-card rounded-full h-10 shadow-sm border-border" />
                         <FilterBuilder options={filterOptions} filters={filters} onFiltersChange={onFiltersChange} />
                         <Button onClick={openCreate} className="bg-primary hover:bg-primary/90 text-primary-foreground rounded-md px-4 h-9">
                             <Plus className="mr-2 h-4 w-4" />
@@ -210,7 +210,7 @@ export function CommunityUI({
             />
 
             <Dialog open={isFormOpen} onOpenChange={setIsFormOpen}>
-                <DialogContent className="sm:max-w-[425px]">
+                <DialogContent className="sm:max-w-106.25">
                     <DialogHeader>
                         <DialogTitle>{editingGroup ? 'Edit Group' : 'Create Group'}</DialogTitle>
                         <DialogDescription>

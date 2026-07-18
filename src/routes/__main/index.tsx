@@ -223,7 +223,7 @@ function RouteComponent() {
                                 {PIE_DATA.map((item) => (
                                     <div key={item.name} className="flex items-center justify-between">
                                         <div className="flex items-center gap-2">
-                                            <div className="w-3 h-3 rounded bg-gray-200" style={{ backgroundColor: item.color }}></div>
+                                            <div className="w-3 h-3 rounded bg-muted" style={{ backgroundColor: item.color }}></div>
                                             <span className="text-sm font-semibold text-chart-1">{item.name}</span>
                                         </div>
                                         <span className="text-sm font-bold text-muted-foreground">({item.value}%)</span>
@@ -231,7 +231,7 @@ function RouteComponent() {
                                 ))}
                             </div>
 
-                            <button className="w-full mt-8 py-3 rounded-lg bg-gray-50 border border-gray-200 text-sm font-bold text-chart-1 hover:bg-gray-100 transition-colors">
+                            <button className="w-full mt-8 py-3 rounded-lg bg-muted border border-border text-sm font-bold text-chart-1 hover:bg-accent transition-colors">
                                 Launch Deep Analytics Interface
                             </button>
                         </CardContent>
@@ -258,7 +258,7 @@ function RouteComponent() {
                                     <th className="px-6 py-4 rounded-tr-sm text-center">ACTION</th>
                                 </tr>
                             </thead>
-                            <tbody className="divide-y divide-border/50 bg-white">
+                            <tbody className="divide-y divide-border/50 bg-card">
                                 {ACTIVITIES.map((act) => (
                                     <tr key={act.id} className="hover:bg-muted/30 transition-colors">
                                         <td className="px-6 py-4">

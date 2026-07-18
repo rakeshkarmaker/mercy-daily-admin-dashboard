@@ -35,7 +35,7 @@ export function NavMain({
                                 className={`h-11 rounded-full px-5 group-data-[collapsible=icon]:px-0! group-data-[collapsible=icon]:w-11 group-data-[collapsible=icon]:justify-center group-data-[collapsible=icon]:mx-auto shadow-sm transition-all duration-200 border border-transparent ${
                                     isActive 
                                         ? 'bg-primary text-primary-foreground hover:bg-primary/90 hover:text-primary-foreground shadow-md' 
-                                        : 'bg-white text-foreground hover:bg-white hover:border-border hover:shadow-md dark:bg-card dark:text-card-foreground dark:hover:bg-card'
+                                        : 'bg-card text-foreground hover:bg-card hover:text-primary hover:border-border hover:shadow-md dark:bg-card dark:text-card-foreground dark:hover:bg-card dark:hover:text-primary'
                                 }`}
                             >
                                 <Link to={item.url} className="flex items-center gap-3">
