@@ -1,9 +1,25 @@
-import { useAppForm } from '@/components/form/form-context'
+import { request } from '@/api/base'
+import { useAppForm } from '@/components/shared/forms/form-context'
 import { useMutation } from '@tanstack/react-query'
 import { createFileRoute, Link, useNavigate } from '@tanstack/react-router'
 import { EyeOff } from 'lucide-react'
 import { toast } from 'sonner'
 import { z } from 'zod'
+
+/** Shape returned by POST /auth/login (AuthResponseDto). */
+type LoginResponse = {
+    user: {
+        id: string
+        name: string
+        email: string
+        role: 'ADMIN' | 'APP_USER'
+        avatarUrl: string | null
+        isEmailVerified: boolean
+    }
+    accessToken: string
+    refreshToken: string
+    expiresIn: number
+}
 
 export const Route = createFileRoute('/__auth/signin')({
     component: RouteComponent,
@@ -21,11 +37,30 @@ function RouteComponent() {
     })
 
     const signIn = useMutation({
-        mutationFn: async (_payload: any) => {
-            await new Promise((resolve) => setTimeout(resolve, 500))
-            return { user: { emailVerified: true } }
+        mutationFn: async (payload: { email: string; password: string }) => {
+            return request<LoginResponse>('/auth/login', {
+                method: 'POST',
+                body: JSON.stringify(payload),
+            })
         },
-        onSuccess: async () => {
+        onSuccess: async (data) => {
+            // The admin dashboard is ADMIN-only — APP_USER accounts are
+            // app-mobile users and get bounced here with a clear message.
+            if (data.user.role !== 'ADMIN') {
+                throw new Error('This dashboard requires an admin account')
+            }
+            localStorage.setItem('auth_token', data.accessToken)
+            localStorage.setItem('auth_refresh_token', data.refreshToken)
+            localStorage.setItem(
+                'auth_user',
+                JSON.stringify({
+                    id: data.user.id,
+                    name: data.user.name,
+                    email: data.user.email,
+                    role: data.user.role,
+                    image: data.user.avatarUrl ?? '',
+                })
+            )
             navigate({ to: '/' })
         },
         onError: (error: Error) => toast.error(error.message),
@@ -37,7 +72,6 @@ function RouteComponent() {
         onSubmit: async ({ value }) => {
             await signIn.mutateAsync({
                 email: value.email,
-                panel: 'owner',
                 password: value.password,
             })
         },

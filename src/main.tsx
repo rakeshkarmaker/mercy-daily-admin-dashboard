@@ -20,9 +20,10 @@ export const queryClient = new QueryClient({
 const router = createRouter({
     routeTree,
     context: { queryClient },
-    defaultPreload: 'intent',
+    // Route changes should be driven by the clicked Link, not by hover
+    // preloads that can race the active navigation.
+    defaultPreload: false,
     scrollRestoration: true,
-    defaultPreloadStaleTime: 0,
     defaultPendingComponent: PendingComp,
     defaultErrorComponent: ErrorComp,
     defaultNotFoundComponent: NotFoundComp,

@@ -20,6 +20,7 @@ import {
     DropdownMenuTrigger,
 } from '@/components/ui/dropdown-menu'
 import { SidebarMenu, SidebarMenuButton, SidebarMenuItem, useSidebar } from '@/components/ui/sidebar'
+import { request } from '@/api/base'
 import { Link, useNavigate } from '@tanstack/react-router'
 import { BadgeCheckIcon, ChevronsUpDownIcon, LogOutIcon } from 'lucide-react'
 import { toast } from 'sonner'
@@ -29,8 +30,16 @@ export function NavUser({ user }: { user: any }) {
     const { isMobile } = useSidebar()
 
     const signOut = () => {
-        toast.success('Signed out successfully (mock)')
-        navigate({ to: '/' })
+        // Best-effort server-side revocation (bumps tokenVersion so every
+        // refresh token dies), then clear local state.
+        request('/auth/logout', { method: 'POST' }).catch(() => {
+            // Token may already be expired — clearing locally is enough.
+        })
+        localStorage.removeItem('auth_token')
+        localStorage.removeItem('auth_refresh_token')
+        localStorage.removeItem('auth_user')
+        toast.success('Signed out successfully')
+        navigate({ to: '/signin' })
     }
 
     return (

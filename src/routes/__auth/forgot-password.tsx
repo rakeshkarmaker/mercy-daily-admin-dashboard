@@ -1,8 +1,6 @@
-import { useAppForm } from '@/components/form/form-context'
-import { Card, CardContent } from '@/components/ui/card'
+import { useAppForm } from '@/components/shared/forms/form-context'
 import { useMutation } from '@tanstack/react-query'
 import { Link, createFileRoute, useNavigate } from '@tanstack/react-router'
-import { Mail } from 'lucide-react'
 import { toast } from 'sonner'
 import { z } from 'zod'
 
