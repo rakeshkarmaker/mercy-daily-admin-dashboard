@@ -1,10 +1,11 @@
-import { useAppForm } from '@/components/form/form-context'
+import { useAppForm } from '@/components/shared/forms/form-context'
 import { Button } from '@/components/ui/button'
 import { PageHeader } from '@/components/shared/page-header'
 import { Separator } from '@/components/ui/separator'
 import { Switch } from '@/components/ui/switch'
 import { useMutation, useQueryClient, useQuery } from '@tanstack/react-query'
-import { createFileRoute } from '@tanstack/react-router'
+import { createFileRoute, useNavigate } from '@tanstack/react-router'
+import { request } from '@/api/base'
 import { SlidersHorizontal, User, ShieldCheck, Camera, ArrowLeft, FileText, FileSignature, Loader2, X } from 'lucide-react'
 import { useState, useEffect, useMemo } from 'react'
 import { toast } from 'sonner'
@@ -12,7 +13,7 @@ import * as z from 'zod'
 import JoditEditor from 'jodit-react'
 import { Dialog, DialogContent, DialogTitle } from '@/components/ui/dialog'
 import { Badge } from '@/components/ui/badge'
-import { staticContentApi } from '@/lib/settings'
+import { staticContentApi } from '@/api/settings'
 
 export const Route = createFileRoute('/__main/settings')({
     component: RouteComponent,
@@ -155,11 +156,24 @@ function GeneralTab() {
 function ProfileTab() {
     const { user } = Route.useRouteContext()
 
+    // Persists via PATCH /profile/me (self-service account endpoint).
     const updateUser = useMutation({
-        mutationFn: async (data: any) => {
-            return { user: { ...user, ...data } }
+        mutationFn: async (data: { name?: string; avatarUrl?: string }) => {
+            return request('/profile/me', {
+                method: 'PATCH',
+                body: JSON.stringify(data),
+            })
         },
-        onSuccess: () => {
+        onSuccess: (updated) => {
+            // Keep the sidebar/header in sync with the saved profile.
+            const next = {
+                id: (updated as any).id,
+                name: (updated as any).name,
+                email: (updated as any).email,
+                role: (updated as any).role,
+                image: (updated as any).avatarUrl ?? '',
+            }
+            localStorage.setItem('auth_user', JSON.stringify(next))
             toast.success("Profile updated successfully")
         },
         onError: (error) => toast.error(error.message),
@@ -175,7 +189,7 @@ function ProfileTab() {
         onSubmit: async ({ value }) => {
             await updateUser.mutateAsync({
                 name: value.name,
-                image: value.image,
+                avatarUrl: value.image,
             })
         },
     })
@@ -252,14 +266,28 @@ function ProfileTab() {
 
 function SecurityTab() {
     const [twoFactor, setTwoFactor] = useState(false)
+    const navigate = useNavigate()
 
+    // Changes the password via PUT /profile/me/password. The backend bumps
+    // tokenVersion on success, invalidating every outstanding session —
+    // including this one — so the user is signed back in.
     const changePassword = useMutation({
-        mutationFn: async (_data: any) => {
-            return { message: 'Password changed successfully' }
+        mutationFn: async (data: {
+            oldPassword: string
+            newPassword: string
+            confirmPassword: string
+        }) => {
+            return request<{ message: string }>('/profile/me/password', {
+                method: 'PUT',
+                body: JSON.stringify(data),
+            })
         },
         onSuccess: (data) => {
-            toast.success(data.message)
-            form.reset()
+            toast.success(data.message ?? 'Password changed successfully')
+            localStorage.removeItem('auth_token')
+            localStorage.removeItem('auth_refresh_token')
+            localStorage.removeItem('auth_user')
+            navigate({ to: '/signin' })
         },
         onError: (error) => toast.error(error.message),
     })
@@ -269,9 +297,9 @@ function SecurityTab() {
         validators: { onChange: securitySchema },
         onSubmit: async ({ value }) => {
             await changePassword.mutateAsync({
-                currentPassword: value.currentPassword,
+                oldPassword: value.currentPassword,
                 newPassword: value.newPassword,
-                revokeOtherSessions: true,
+                confirmPassword: value.confirmPassword,
             })
         },
     })
@@ -332,7 +360,7 @@ function SecurityTab() {
             <div className="flex items-center justify-between">
                 <div>
                     <p className="text-sm font-medium text-foreground flex items-center gap-2">
-                        <ShieldCheck className="h-4 w-4 text-emerald-500" />
+                        <ShieldCheck className="h-4 w-4 text-success" />
                         Two-Factor Authentication
                     </p>
                     <p className="text-xs text-muted-foreground mt-0.5 ml-6">Add an extra layer of security to your account.</p>

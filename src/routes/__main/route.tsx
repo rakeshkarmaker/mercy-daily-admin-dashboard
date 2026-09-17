@@ -1,42 +1,52 @@
 import { AppSidebar } from '@/components/main/app-sidebar'
 import { SidebarInset, SidebarProvider, SidebarTrigger } from '@/components/ui/sidebar'
 import { TooltipProvider } from '@/components/ui/tooltip'
-import { getModuleByPath, MODULE_KEYS, MODULES } from '@/lib/module'
-import { createFileRoute, Outlet, useRouterState } from '@tanstack/react-router'
+import { createFileRoute, Outlet, redirect } from '@tanstack/react-router'
 import { ModeToggle } from '@/components/mode-toggle'
-import { motion, AnimatePresence } from 'motion/react'
-import { motionTokens } from '@/lib/motionTokens'
 
+type AuthUser = {
+    id: string
+    name: string
+    email: string
+    role: string
+    image: string
+}
+
+/**
+ * Route guard: token presence check only — no API call per navigation.
+ * Token VALIDITY is enforced by the API client (401 → silent refresh →
+ * retry, or clear + hard redirect on terminal failure), which already
+ * covers every page's data requests. Validating /auth/me here on every
+ * navigation made each route change (and each hover preload) wait on a
+ * network round-trip and broke page switching.
+ */
 export const Route = createFileRoute('/__main')({
     beforeLoad: async () => {
-        const session = {
-            user: {
-                id: '1',
-                name: 'Admin User',
-                email: 'admin@example.com',
-                role: 'ADMIN',
-                isDefault: true,
-                image: '',
-                phone: '',
-            }
+        const token = localStorage.getItem('auth_token')
+        if (!token) {
+            throw redirect({ to: '/signin' })
         }
-        return session
+
+        const raw = localStorage.getItem('auth_user')
+        if (!raw) {
+            throw redirect({ to: '/signin' })
+        }
+        try {
+            const user = JSON.parse(raw) as AuthUser
+            if (user.role !== 'ADMIN') {
+                throw redirect({ to: '/signin' })
+            }
+            return { user }
+        } catch {
+            localStorage.removeItem('auth_user')
+            throw redirect({ to: '/signin' })
+        }
     },
     component: RouteComponent,
 })
 
-// Derived breadcrumb labels from modules
-const buildRouteLabels = (): Record<string, string> =>
-    Object.fromEntries(MODULE_KEYS.map((id) => [MODULES[id].path, id.replace(/-/g, ' ').replace(/\b\w/g, (c) => c.toUpperCase())]))
-
 function RouteComponent() {
     const { user } = Route.useRouteContext()
-    const pathname = useRouterState({ select: (s) => s.location.pathname })
-
-    const routeLabels = buildRouteLabels()
-
-    const segments = pathname.split('/').filter(Boolean)
-
     return (
         <SidebarProvider>
             <TooltipProvider>
@@ -61,18 +71,9 @@ function RouteComponent() {
                             <ModeToggle />
                         </div>
                     </header>
-                    <AnimatePresence mode="wait">
-                        <motion.div
-                            key={pathname}
-                            className="flex flex-1 flex-col gap-4 p-4 sm:p-6 min-w-0 w-full"
-                            initial={{ opacity: 0 }}
-                            animate={{ opacity: 1 }}
-                            exit={{ opacity: 0 }}
-                            transition={{ duration: motionTokens.duration.fast }}
-                        >
-                            <Outlet />
-                        </motion.div>
-                    </AnimatePresence>
+                    <div className="flex flex-1 flex-col gap-4 p-4 sm:p-6 min-w-0 w-full">
+                        <Outlet />
+                    </div>
                 </SidebarInset>
             </TooltipProvider>
         </SidebarProvider>

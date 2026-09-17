@@ -4,16 +4,16 @@ import type {LucideIcon} from 'lucide-react';
 
 const COLOR_MAP = {
     blue: {
-        blob: 'bg-blue-500/5',
-        badge: 'bg-blue-50 text-blue-600 dark:bg-blue-950/40 dark:text-blue-400',
+        blob: 'bg-info/5',
+        badge: 'bg-info/10 text-info',
     },
     emerald: {
-        blob: 'bg-emerald-500/5',
-        badge: 'bg-emerald-50 text-emerald-600 dark:bg-emerald-950/40 dark:text-emerald-400',
+        blob: 'bg-success/5',
+        badge: 'bg-success/10 text-success',
     },
     orange: {
-        blob: 'bg-orange-500/5',
-        badge: 'bg-orange-50 text-orange-600 dark:bg-orange-950/40 dark:text-orange-400',
+        blob: 'bg-warning/5',
+        badge: 'bg-warning/10 text-warning',
     },
     amber: {
         blob: 'bg-amber-500/5',
@@ -23,9 +23,9 @@ const COLOR_MAP = {
         blob: 'bg-pink-500/5',
         badge: 'bg-pink-50 text-pink-600 dark:bg-pink-950/40 dark:text-pink-400',
     },
-    rose: {
-        blob: 'bg-rose-500/5',
-        badge: 'bg-rose-50 text-rose-600 dark:bg-rose-950/40 dark:text-rose-400',
+    destructive: {
+        blob: 'bg-destructive/5',
+        badge: 'bg-destructive/10 text-destructive',
     },
     slate: {
         blob: 'bg-slate-500/5',
@@ -78,7 +78,7 @@ export function StatCard({ label, value, icon: Icon, color, trend, className }: 
                     <div
                         className={cn(
                             'flex items-center gap-1 mt-1.5 text-xs font-medium',
-                            trend.direction === 'up' ? 'text-emerald-600 dark:text-emerald-400' : 'text-rose-600 dark:text-rose-400',
+                            trend.direction === 'up' ? 'text-success' : 'text-destructive',
                         )}
                     >
                         {trend.direction === 'up' ? <ArrowUpRight className="h-3.5 w-3.5" /> : <ArrowDownRight className="h-3.5 w-3.5" />}

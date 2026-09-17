@@ -15,6 +15,7 @@ import { Route as _mainIndexRouteImport } from './routes/__main/index'
 import { Route as _mainUserManagementRouteImport } from './routes/__main/user-management'
 import { Route as _mainSubscriptionsRouteImport } from './routes/__main/subscriptions'
 import { Route as _mainSettingsRouteImport } from './routes/__main/settings'
+import { Route as _mainReportsRouteImport } from './routes/__main/reports'
 import { Route as _mainPrayerManagementRouteImport } from './routes/__main/prayer-management'
 import { Route as _mainPaymentsRouteImport } from './routes/__main/payments'
 import { Route as _mainNotificationsRouteImport } from './routes/__main/notifications'
@@ -51,6 +52,11 @@ const _mainSubscriptionsRoute = _mainSubscriptionsRouteImport.update({
 const _mainSettingsRoute = _mainSettingsRouteImport.update({
   id: '/settings',
   path: '/settings',
+  getParentRoute: () => _mainRouteRoute,
+} as any)
+const _mainReportsRoute = _mainReportsRouteImport.update({
+  id: '/reports',
+  path: '/reports',
   getParentRoute: () => _mainRouteRoute,
 } as any)
 const _mainPrayerManagementRoute = _mainPrayerManagementRouteImport.update({
@@ -110,6 +116,7 @@ export interface FileRoutesByFullPath {
   '/notifications': typeof _mainNotificationsRoute
   '/payments': typeof _mainPaymentsRoute
   '/prayer-management': typeof _mainPrayerManagementRoute
+  '/reports': typeof _mainReportsRoute
   '/settings': typeof _mainSettingsRoute
   '/subscriptions': typeof _mainSubscriptionsRoute
   '/user-management': typeof _mainUserManagementRoute
@@ -125,6 +132,7 @@ export interface FileRoutesByTo {
   '/notifications': typeof _mainNotificationsRoute
   '/payments': typeof _mainPaymentsRoute
   '/prayer-management': typeof _mainPrayerManagementRoute
+  '/reports': typeof _mainReportsRoute
   '/settings': typeof _mainSettingsRoute
   '/subscriptions': typeof _mainSubscriptionsRoute
   '/user-management': typeof _mainUserManagementRoute
@@ -142,6 +150,7 @@ export interface FileRoutesById {
   '/__main/notifications': typeof _mainNotificationsRoute
   '/__main/payments': typeof _mainPaymentsRoute
   '/__main/prayer-management': typeof _mainPrayerManagementRoute
+  '/__main/reports': typeof _mainReportsRoute
   '/__main/settings': typeof _mainSettingsRoute
   '/__main/subscriptions': typeof _mainSubscriptionsRoute
   '/__main/user-management': typeof _mainUserManagementRoute
@@ -160,6 +169,7 @@ export interface FileRouteTypes {
     | '/notifications'
     | '/payments'
     | '/prayer-management'
+    | '/reports'
     | '/settings'
     | '/subscriptions'
     | '/user-management'
@@ -175,6 +185,7 @@ export interface FileRouteTypes {
     | '/notifications'
     | '/payments'
     | '/prayer-management'
+    | '/reports'
     | '/settings'
     | '/subscriptions'
     | '/user-management'
@@ -191,6 +202,7 @@ export interface FileRouteTypes {
     | '/__main/notifications'
     | '/__main/payments'
     | '/__main/prayer-management'
+    | '/__main/reports'
     | '/__main/settings'
     | '/__main/subscriptions'
     | '/__main/user-management'
@@ -244,6 +256,13 @@ declare module '@tanstack/react-router' {
       path: '/settings'
       fullPath: '/settings'
       preLoaderRoute: typeof _mainSettingsRouteImport
+      parentRoute: typeof _mainRouteRoute
+    }
+    '/__main/reports': {
+      id: '/__main/reports'
+      path: '/reports'
+      fullPath: '/reports'
+      preLoaderRoute: typeof _mainReportsRouteImport
       parentRoute: typeof _mainRouteRoute
     }
     '/__main/prayer-management': {
@@ -336,6 +355,7 @@ interface _mainRouteRouteChildren {
   _mainNotificationsRoute: typeof _mainNotificationsRoute
   _mainPaymentsRoute: typeof _mainPaymentsRoute
   _mainPrayerManagementRoute: typeof _mainPrayerManagementRoute
+  _mainReportsRoute: typeof _mainReportsRoute
   _mainSettingsRoute: typeof _mainSettingsRoute
   _mainSubscriptionsRoute: typeof _mainSubscriptionsRoute
   _mainUserManagementRoute: typeof _mainUserManagementRoute
@@ -348,6 +368,7 @@ const _mainRouteRouteChildren: _mainRouteRouteChildren = {
   _mainNotificationsRoute: _mainNotificationsRoute,
   _mainPaymentsRoute: _mainPaymentsRoute,
   _mainPrayerManagementRoute: _mainPrayerManagementRoute,
+  _mainReportsRoute: _mainReportsRoute,
   _mainSettingsRoute: _mainSettingsRoute,
   _mainSubscriptionsRoute: _mainSubscriptionsRoute,
   _mainUserManagementRoute: _mainUserManagementRoute,

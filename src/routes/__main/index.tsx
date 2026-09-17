@@ -276,12 +276,12 @@ function RouteComponent() {
                                         <td className="px-6 py-4 text-muted-foreground font-medium">{act.module}</td>
                                         <td className="px-6 py-4 font-semibold text-chart-1">{act.date}</td>
                                         <td className="px-6 py-4">
-                                            <span className={`font-bold ${act.status === 'Active' ? 'text-success' : 'text-red-500'}`}>
+                                            <span className={`font-bold ${act.status === 'Active' ? 'text-success' : 'text-destructive'}`}>
                                                 {act.status}
                                             </span>
                                         </td>
                                         <td className="px-6 py-4 text-center">
-                                            <button className="p-2 rounded-full bg-orange-50 text-orange-400 hover:bg-orange-100 transition-colors mx-auto block">
+                                            <button className="p-2 rounded-full bg-primary/10 text-primary hover:bg-primary/20 transition-colors mx-auto block">
                                                 <Eye className="size-4" />
                                             </button>
                                         </td>

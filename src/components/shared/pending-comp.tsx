@@ -1,9 +1,5 @@
-import { Spinner } from '@/components/shared/spinner'
+import { PageSkeleton } from '@/components/shared/page-skeleton'
 
 export function PendingComp() {
-    return (
-        <div className="flex-1 flex justify-center items-center">
-            <Spinner className="size-48 stroke-primary" />
-        </div>
-    )
+    return <PageSkeleton />
 }

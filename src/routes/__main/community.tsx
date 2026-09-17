@@ -1,10 +1,11 @@
 import { createFileRoute } from '@tanstack/react-router'
-import { useState, useMemo } from 'react'
+import { useMemo, useState } from 'react'
 import { useSearchParams } from '@/hooks/use-search-params'
-import { CommunityUI } from '@/components/shared/community-ui'
-import { COMMUNITY_GROUPS, createGroup, updateGroup, deleteGroup } from '@/lib/community'
-import type { CommunityGroup } from '@/lib/community'
+import { CommunityUI } from '@/components/features/community/community-ui'
+import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
+import { listPosts, deletePost } from '@/api/community'
 import type { FilterState } from '@/components/shared/filter-builder'
+import { toast } from 'sonner'
 import * as z from 'zod'
 
 const searchSchema = z.object({
@@ -23,83 +24,55 @@ function CommunityPage() {
     const { page = 1, limit = 10, search: searchQuery = '' } = Route.useSearch()
     const mergeSearch = useSearchParams()
     const [filters, setFilters] = useState<FilterState[]>([])
+    const queryClient = useQueryClient()
 
-    // ----------------------------------------------------------------------
-    // Filter and Search Logic
-    // ----------------------------------------------------------------------
-    const filteredContent = useMemo(() => {
-        let result = COMMUNITY_GROUPS
+    // Server-paginated feed. For an admin this returns all live posts.
+    const { data: feed = { data: [], total: 0 }, isLoading } = useQuery({
+        queryKey: ['community', page, limit],
+        queryFn: () => listPosts({ page, limit }),
+    })
 
+    const posts = feed.data
+
+    const filteredPosts = useMemo(() => {
+        let result = posts
         if (searchQuery.trim()) {
-            const query = searchQuery.toLowerCase()
+            const q = searchQuery.toLowerCase()
             result = result.filter(
-                (c) =>
-                    c.name.toLowerCase().includes(query) ||
-                    c.category.toLowerCase().includes(query)
+                (p) =>
+                    (p.author?.name ?? '').toLowerCase().includes(q) ||
+                    p.content.toLowerCase().includes(q),
             )
         }
-
         if (filters.length > 0) {
-            result = result.filter((content) => {
-                for (const filter of filters) {
-                    const { fieldId, condition, value } = filter
-                    const contentValue = content[fieldId as keyof typeof content]
-
-                    if (contentValue === undefined) continue
-
-                    const valStr = String(contentValue).toLowerCase()
-                    const filterValStr = String(value).toLowerCase()
-
-                    if (!value && !['is empty', 'is not empty'].includes(condition)) {
-                        continue
-                    }
-
-                    // --- empty checks ---
-                    if (condition === 'is empty') {
-                        if (valStr.trim() !== '') return false
-                        continue
-                    }
-                    if (condition === 'is not empty') {
-                        if (valStr.trim() === '') return false
-                        continue
-                    }
-
-                    // --- date-specific ---
-                    if (condition === 'is before') {
-                        if (!value || valStr >= filterValStr) return false
-                    } else if (condition === 'is after') {
-                        if (!value || valStr <= filterValStr) return false
-                    } else if (condition === 'is between') {
-                        const [from, to] = Array.isArray(value) ? value : [value, '']
-                        if (from && valStr < from) return false
-                        if (to && valStr > to) return false
-                    }
-                    // --- generic ---
-                    else if (condition === 'is exactly' || condition === 'is' || condition === '=') {
-                        if (valStr !== filterValStr) return false
-                    } else if (condition === 'is not exactly' || condition === 'is not' || condition === '!=') {
-                        if (valStr === filterValStr) return false
-                    } else if (condition === 'contains') {
-                        if (!valStr.includes(filterValStr)) return false
-                    } else if (condition === 'does not contain') {
-                        if (valStr.includes(filterValStr)) return false
-                    } else if (condition === 'starts with') {
-                        if (!valStr.startsWith(filterValStr)) return false
-                    } else if (condition === 'ends with') {
-                        if (!valStr.endsWith(filterValStr)) return false
+            result = result.filter((p) => {
+                for (const { fieldId, condition, value } of filters) {
+                    if (fieldId === 'hasImages') {
+                        const has = p.imageUrls.length > 0
+                        const matches =
+                            (value === 'yes' && has) || (value === 'no' && !has)
+                        if (condition === 'is' && !matches) return false
+                    } else if (fieldId === 'createdAt') {
+                        const valStr = p.createdAt.slice(0, 10)
+                        if (condition === 'is before' && !(valStr < value)) return false
+                        if (condition === 'is after' && !(valStr > value)) return false
+                        if (condition === 'is' && valStr !== value) return false
                     }
                 }
                 return true
             })
         }
-
         return result
-    }, [searchQuery, filters])
+    }, [posts, searchQuery, filters])
 
-    const paginatedContent = useMemo(() => {
-        const start = (page - 1) * limit
-        return filteredContent.slice(start, start + limit)
-    }, [filteredContent, page, limit])
+    const deleteMutation = useMutation({
+        mutationFn: (id: string) => deletePost(id),
+        onSuccess: () => {
+            toast.success('Post deleted')
+            queryClient.invalidateQueries({ queryKey: ['community'] })
+        },
+        onError: (error: Error) => toast.error(error.message),
+    })
 
     const handleSearchChange = (value: string) => {
         mergeSearch({ search: value || undefined, page: 1 })
@@ -109,29 +82,12 @@ function CommunityPage() {
         mergeSearch({ search: undefined, page: 1 })
         setFilters([])
     }
-    
-    const handleCreateGroup = (data: Omit<CommunityGroup, 'id' | 'createdAt'>) => {
-        createGroup(data)
-        // trigger re-render
-        setFilters([...filters])
-    }
-
-    const handleUpdateGroup = (id: number, data: Partial<CommunityGroup>) => {
-        updateGroup(id, data)
-        // trigger re-render
-        setFilters([...filters])
-    }
-
-    const handleDeleteGroup = (id: number) => {
-        deleteGroup(id)
-        // trigger re-render
-        setFilters([...filters])
-    }
 
     return (
         <CommunityUI
-            groups={paginatedContent}
-            totalGroups={filteredContent.length}
+            posts={filteredPosts}
+            totalPosts={feed.total}
+            loading={isLoading}
             page={page}
             limit={limit}
             searchQuery={searchQuery}
@@ -142,9 +98,7 @@ function CommunityPage() {
                 mergeSearch({ page: 1 })
             }}
             onResetSearch={handleResetSearch}
-            onCreateGroup={handleCreateGroup}
-            onUpdateGroup={handleUpdateGroup}
-            onDeleteGroup={handleDeleteGroup}
+            onDeletePost={(id) => deleteMutation.mutate(id)}
         />
     )
 }

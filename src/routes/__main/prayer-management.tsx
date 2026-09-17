@@ -1,16 +1,17 @@
 import { createFileRoute } from '@tanstack/react-router'
-import { useState, useMemo } from 'react'
+import { useMemo } from 'react'
+import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import { useSearchParams } from '@/hooks/use-search-params'
-import { PrayerManagementUI } from '@/components/shared/prayer-management-ui'
-import { PRAYERS } from '@/lib/prayer-management'
-import type { FilterState } from '@/components/shared/filter-builder'
+import { toast } from 'sonner'
 import * as z from 'zod'
+import { PrayerManagementUI } from '@/components/features/prayer-management/prayer-management-ui'
+import { createPrayer, deletePrayer, listPrayers, listSchedules, schedulePrayer, updatePrayer } from '@/api/dailyprayers'
+import type { PrayerInput } from '@/api/dailyprayers'
 
 const searchSchema = z.object({
     page: z.number().catch(1).optional(),
     limit: z.number().catch(10).optional(),
     search: z.string().catch('').optional(),
-    filters: z.string().catch('[]').optional(),
 })
 
 export const Route = createFileRoute('/__main/prayer-management')({
@@ -21,115 +22,68 @@ export const Route = createFileRoute('/__main/prayer-management')({
 function PrayerManagementPage() {
     const { page = 1, limit = 10, search: searchQuery = '' } = Route.useSearch()
     const mergeSearch = useSearchParams()
-    const [filters, setFilters] = useState<FilterState[]>([])
+    const queryClient = useQueryClient()
 
-    // ----------------------------------------------------------------------
-    // Filter and Search Logic
-    // ----------------------------------------------------------------------
-    const filteredContent = useMemo(() => {
-        let result = PRAYERS
+    const { data, isLoading } = useQuery({
+        queryKey: ['dailyprayers', page, limit],
+        queryFn: () => listPrayers({ page, limit }),
+    })
+    const { data: schedules = [] } = useQuery({
+        queryKey: ['dailyprayer-schedules'],
+        queryFn: listSchedules,
+    })
 
-        if (searchQuery.trim()) {
-            const query = searchQuery.toLowerCase()
-            result = result.filter(
-                (c) =>
-                    c.title.toLowerCase().includes(query) ||
-                    c.category.toLowerCase().includes(query) ||
-                    c.author.toLowerCase().includes(query)
-            )
-        }
+    const prayers = useMemo(() => {
+        const rows = data?.data ?? []
+        const query = searchQuery.trim().toLowerCase()
+        if (!query) return rows
+        return rows.filter((prayer) =>
+            [prayer.verse, prayer.reference, prayer.reflection, prayer.prayer]
+                .some((value) => value.toLowerCase().includes(query)),
+        )
+    }, [data?.data, searchQuery])
 
-        if (filters.length > 0) {
-            result = result.filter((content) => {
-                for (const filter of filters) {
-                    const { fieldId, condition, value } = filter
-                    const contentValue = content[fieldId as keyof typeof content]
-
-                    if (contentValue === undefined) continue
-
-                    const valStr = String(contentValue).toLowerCase()
-                    const filterValStr = String(value).toLowerCase()
-
-                    if (!value && !['is empty', 'is not empty'].includes(condition)) {
-                        continue
-                    }
-
-                    // --- empty checks ---
-                    if (condition === 'is empty') {
-                        if (valStr.trim() !== '') return false
-                        continue
-                    }
-                    if (condition === 'is not empty') {
-                        if (valStr.trim() === '') return false
-                        continue
-                    }
-
-                    // --- date-specific ---
-                    if (condition === 'is before') {
-                        if (!value || valStr >= filterValStr) return false
-                    } else if (condition === 'is after') {
-                        if (!value || valStr <= filterValStr) return false
-                    } else if (condition === 'is between') {
-                        const [from, to] = Array.isArray(value) ? value : [value, '']
-                        if (from && valStr < from) return false
-                        if (to && valStr > to) return false
-                    }
-                    // --- generic ---
-                    else if (condition === 'is exactly' || condition === 'is' || condition === '=') {
-                        if (valStr !== filterValStr) return false
-                    } else if (condition === 'is not exactly' || condition === 'is not' || condition === '!=') {
-                        if (valStr === filterValStr) return false
-                    } else if (condition === 'contains') {
-                        if (!valStr.includes(filterValStr)) return false
-                    } else if (condition === 'does not contain') {
-                        if (valStr.includes(filterValStr)) return false
-                    } else if (condition === 'starts with') {
-                        if (!valStr.startsWith(filterValStr)) return false
-                    } else if (condition === 'ends with') {
-                        if (!valStr.endsWith(filterValStr)) return false
-                    }
-                }
-                return true
-            })
-        }
-
-        return result
-    }, [searchQuery, filters])
-
-    const paginatedContent = useMemo(() => {
-        const start = (page - 1) * limit
-        return filteredContent.slice(start, start + limit)
-    }, [filteredContent, page, limit])
-
-    const handleSearchChange = (value: string) => {
-        mergeSearch({ search: value || undefined, page: 1 })
+    const invalidate = () => {
+        queryClient.invalidateQueries({ queryKey: ['dailyprayers'] })
+        queryClient.invalidateQueries({ queryKey: ['dailyprayer-schedules'] })
     }
 
-    const handleResetSearch = () => {
-        mergeSearch({ search: undefined, page: 1 })
-        setFilters([])
-    }
-    
-    const handleCreatePrayer = () => {
-        // No-op for now, would open a modal or navigate to create page
-        console.log('Create Prayer clicked')
-    }
+    const createMutation = useMutation({
+        mutationFn: (input: PrayerInput) => createPrayer(input),
+        onSuccess: () => { toast.success('Prayer created'); invalidate() },
+        onError: (error: Error) => toast.error(error.message),
+    })
+    const updateMutation = useMutation({
+        mutationFn: ({ id, input }: { id: number; input: Partial<PrayerInput> }) => updatePrayer(id, input),
+        onSuccess: () => { toast.success('Prayer updated'); invalidate() },
+        onError: (error: Error) => toast.error(error.message),
+    })
+    const deleteMutation = useMutation({
+        mutationFn: (id: number) => deletePrayer(id),
+        onSuccess: () => { toast.success('Prayer deleted'); invalidate() },
+        onError: (error: Error) => toast.error(error.message),
+    })
+    const scheduleMutation = useMutation({
+        mutationFn: ({ id, date }: { id: number; date: string }) => schedulePrayer(id, date),
+        onSuccess: (_, variables) => { toast.success(`Prayer scheduled for ${variables.date}`); invalidate() },
+        onError: (error: Error) => toast.error(error.message),
+    })
 
     return (
         <PrayerManagementUI
-            prayers={paginatedContent}
-            totalPrayers={filteredContent.length}
+            prayers={prayers}
+            schedules={schedules}
+            totalPrayers={data?.total ?? 0}
+            loading={isLoading}
             page={page}
             limit={limit}
             searchQuery={searchQuery}
-            onSearchChange={handleSearchChange}
-            filters={filters}
-            onFiltersChange={(f) => {
-                setFilters(f)
-                mergeSearch({ page: 1 })
-            }}
-            onResetSearch={handleResetSearch}
-            onCreatePrayer={handleCreatePrayer}
+            onSearchChange={(value) => mergeSearch({ search: value || undefined, page: 1 })}
+            onResetSearch={() => mergeSearch({ search: undefined, page: 1 })}
+            onCreatePrayer={(input) => createMutation.mutateAsync(input).then(() => undefined)}
+            onUpdatePrayer={(id, input) => updateMutation.mutateAsync({ id, input }).then(() => undefined)}
+            onDeletePrayer={(id) => deleteMutation.mutateAsync(id).then(() => undefined)}
+            onSchedulePrayer={(id, date) => scheduleMutation.mutateAsync({ id, date }).then(() => undefined)}
         />
     )
 }

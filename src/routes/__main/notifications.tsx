@@ -12,8 +12,8 @@ import { Textarea } from '@/components/ui/textarea'
 import { Bell, Plus, Clock, Send, CalendarIcon, MailOpen, Megaphone } from 'lucide-react'
 import { useMemo, useState } from 'react'
 import type { DataTableColumn } from '@/components/shared/data-table'
-import { getNotifications } from '#/lib/notifications'
-import type { NotificationCampaign } from '#/lib/notifications'
+import { getNotifications } from '@/api/notifications'
+import type { NotificationCampaign } from '@/api/notifications'
 
 export const Route = createFileRoute('/__main/notifications')({
     component: NotificationsPage,
