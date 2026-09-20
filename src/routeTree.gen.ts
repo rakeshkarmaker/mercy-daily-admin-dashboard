@@ -15,6 +15,7 @@ import { Route as _mainIndexRouteImport } from './routes/__main/index'
 import { Route as _mainUserManagementRouteImport } from './routes/__main/user-management'
 import { Route as _mainSubscriptionsRouteImport } from './routes/__main/subscriptions'
 import { Route as _mainSettingsRouteImport } from './routes/__main/settings'
+import { Route as _mainSermonsRouteImport } from './routes/__main/sermons'
 import { Route as _mainReportsRouteImport } from './routes/__main/reports'
 import { Route as _mainPrayerManagementRouteImport } from './routes/__main/prayer-management'
 import { Route as _mainPaymentsRouteImport } from './routes/__main/payments'
@@ -52,6 +53,11 @@ const _mainSubscriptionsRoute = _mainSubscriptionsRouteImport.update({
 const _mainSettingsRoute = _mainSettingsRouteImport.update({
   id: '/settings',
   path: '/settings',
+  getParentRoute: () => _mainRouteRoute,
+} as any)
+const _mainSermonsRoute = _mainSermonsRouteImport.update({
+  id: '/sermons',
+  path: '/sermons',
   getParentRoute: () => _mainRouteRoute,
 } as any)
 const _mainReportsRoute = _mainReportsRouteImport.update({
@@ -117,6 +123,7 @@ export interface FileRoutesByFullPath {
   '/payments': typeof _mainPaymentsRoute
   '/prayer-management': typeof _mainPrayerManagementRoute
   '/reports': typeof _mainReportsRoute
+  '/sermons': typeof _mainSermonsRoute
   '/settings': typeof _mainSettingsRoute
   '/subscriptions': typeof _mainSubscriptionsRoute
   '/user-management': typeof _mainUserManagementRoute
@@ -133,6 +140,7 @@ export interface FileRoutesByTo {
   '/payments': typeof _mainPaymentsRoute
   '/prayer-management': typeof _mainPrayerManagementRoute
   '/reports': typeof _mainReportsRoute
+  '/sermons': typeof _mainSermonsRoute
   '/settings': typeof _mainSettingsRoute
   '/subscriptions': typeof _mainSubscriptionsRoute
   '/user-management': typeof _mainUserManagementRoute
@@ -151,6 +159,7 @@ export interface FileRoutesById {
   '/__main/payments': typeof _mainPaymentsRoute
   '/__main/prayer-management': typeof _mainPrayerManagementRoute
   '/__main/reports': typeof _mainReportsRoute
+  '/__main/sermons': typeof _mainSermonsRoute
   '/__main/settings': typeof _mainSettingsRoute
   '/__main/subscriptions': typeof _mainSubscriptionsRoute
   '/__main/user-management': typeof _mainUserManagementRoute
@@ -170,6 +179,7 @@ export interface FileRouteTypes {
     | '/payments'
     | '/prayer-management'
     | '/reports'
+    | '/sermons'
     | '/settings'
     | '/subscriptions'
     | '/user-management'
@@ -186,6 +196,7 @@ export interface FileRouteTypes {
     | '/payments'
     | '/prayer-management'
     | '/reports'
+    | '/sermons'
     | '/settings'
     | '/subscriptions'
     | '/user-management'
@@ -203,6 +214,7 @@ export interface FileRouteTypes {
     | '/__main/payments'
     | '/__main/prayer-management'
     | '/__main/reports'
+    | '/__main/sermons'
     | '/__main/settings'
     | '/__main/subscriptions'
     | '/__main/user-management'
@@ -256,6 +268,13 @@ declare module '@tanstack/react-router' {
       path: '/settings'
       fullPath: '/settings'
       preLoaderRoute: typeof _mainSettingsRouteImport
+      parentRoute: typeof _mainRouteRoute
+    }
+    '/__main/sermons': {
+      id: '/__main/sermons'
+      path: '/sermons'
+      fullPath: '/sermons'
+      preLoaderRoute: typeof _mainSermonsRouteImport
       parentRoute: typeof _mainRouteRoute
     }
     '/__main/reports': {
@@ -356,6 +375,7 @@ interface _mainRouteRouteChildren {
   _mainPaymentsRoute: typeof _mainPaymentsRoute
   _mainPrayerManagementRoute: typeof _mainPrayerManagementRoute
   _mainReportsRoute: typeof _mainReportsRoute
+  _mainSermonsRoute: typeof _mainSermonsRoute
   _mainSettingsRoute: typeof _mainSettingsRoute
   _mainSubscriptionsRoute: typeof _mainSubscriptionsRoute
   _mainUserManagementRoute: typeof _mainUserManagementRoute
@@ -369,6 +389,7 @@ const _mainRouteRouteChildren: _mainRouteRouteChildren = {
   _mainPaymentsRoute: _mainPaymentsRoute,
   _mainPrayerManagementRoute: _mainPrayerManagementRoute,
   _mainReportsRoute: _mainReportsRoute,
+  _mainSermonsRoute: _mainSermonsRoute,
   _mainSettingsRoute: _mainSettingsRoute,
   _mainSubscriptionsRoute: _mainSubscriptionsRoute,
   _mainUserManagementRoute: _mainUserManagementRoute,
