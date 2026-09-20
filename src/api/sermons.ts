@@ -14,7 +14,6 @@ export type Sermon = {
     overview: string | null
     thumbnailUrl: string | null
     youtubeUrl: string | null
-    durationSec: number | null
     status: SermonStatus
     topics: SermonTopic[]
     likesCount: number
@@ -33,7 +32,6 @@ export type SermonInput = {
     overview?: string
     thumbnailUrl?: string
     youtubeUrl: string
-    durationSec?: number
     status?: SermonStatus
 }
 

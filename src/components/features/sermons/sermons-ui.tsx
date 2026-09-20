@@ -1,8 +1,9 @@
-import { useMemo, useState } from 'react'
+import { useMemo, useRef, useState } from 'react'
 import { DataTable } from '@/components/shared/data-table'
 import type { DataTableColumn } from '@/components/shared/data-table'
 import { PageHeader } from '@/components/shared/page-header'
 import { SearchInput } from '@/components/shared/search-input'
+import { Spinner } from '@/components/shared/spinner'
 import { TrashConfirm } from '@/components/shared/trash-confirm'
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
@@ -11,7 +12,9 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@
 import { Input } from '@/components/ui/input'
 import { Tabs, TabsList, TabsTrigger } from '@/components/ui/tabs'
 import { Textarea } from '@/components/ui/textarea'
-import { Eye, Pencil, Plus, ThumbsUp, Trash2, Youtube } from 'lucide-react'
+import { Eye, Pencil, Plus, ThumbsUp, Trash2, Upload, X, Youtube } from 'lucide-react'
+import { toast } from 'sonner'
+import { deleteImage, uploadImage } from '@/api'
 import { resolveImage } from '@/api/base'
 import type { Sermon, SermonInput, SermonStatus } from '@/api/sermons'
 
@@ -38,7 +41,6 @@ type FormState = {
     overview: string
     thumbnailUrl: string
     youtubeUrl: string
-    durationSec: string
     status: SermonStatus
 }
 
@@ -47,7 +49,6 @@ const emptyForm: FormState = {
     overview: '',
     thumbnailUrl: '',
     youtubeUrl: '',
-    durationSec: '',
     status: 'PUBLISHED',
 }
 
@@ -55,13 +56,6 @@ const STATUS_BADGE: Record<SermonStatus, string> = {
     PUBLISHED: 'bg-success/10 text-success',
     DRAFT: 'bg-primary/10 text-primary',
     ARCHIVED: 'bg-muted text-muted-foreground',
-}
-
-function formatDuration(durationSec: number | null): string {
-    if (durationSec === null) return '—'
-    const minutes = Math.floor(durationSec / 60)
-    const seconds = String(durationSec % 60).padStart(2, '0')
-    return `${minutes}:${seconds}`
 }
 
 export function SermonsUI({
@@ -99,7 +93,6 @@ export function SermonsUI({
             overview: sermon.overview ?? '',
             thumbnailUrl: sermon.thumbnailUrl ?? '',
             youtubeUrl: sermon.youtubeUrl ?? '',
-            durationSec: sermon.durationSec !== null ? String(sermon.durationSec) : '',
             status: sermon.status,
         })
         setFormOpen(true)
@@ -114,7 +107,6 @@ export function SermonsUI({
                 overview: form.overview.trim() || undefined,
                 thumbnailUrl: form.thumbnailUrl.trim() || undefined,
                 youtubeUrl: form.youtubeUrl.trim(),
-                durationSec: form.durationSec ? Number(form.durationSec) : undefined,
                 status: form.status,
             }
             if (editing) await onUpdateSermon(editing.id, input)
@@ -165,11 +157,6 @@ export function SermonsUI({
                         {row.topics.map((t) => `#${t.slug}`).join(' ') || '—'}
                     </span>
                 ),
-            },
-            {
-                key: 'duration',
-                header: 'LENGTH',
-                render: (row) => <span className="text-muted-foreground">{formatDuration(row.durationSec)}</span>,
             },
             {
                 key: 'views',
@@ -371,6 +358,94 @@ function Metric({ label, value }: { label: string; value: number }) {
     )
 }
 
+/**
+ * Thumbnail picker for the sermon form. Uploads through the backend
+ * upload module (folder=sermons) and stores the returned /uploads/...
+ * url — mirroring FormImage, but for plain controlled state instead of
+ * the TanStack form field context.
+ */
+function ThumbnailField({
+    value,
+    disabled,
+    onChange,
+}: {
+    value: string
+    disabled?: boolean
+    onChange: (url: string) => void
+}) {
+    const inputRef = useRef<HTMLInputElement>(null)
+    const [busy, setBusy] = useState(false)
+
+    const isUploadedFile = value.startsWith('/uploads/')
+    const preview = value ? (isUploadedFile ? resolveImage(value) : value) : null
+
+    const handleFileChange = async (event: React.ChangeEvent<HTMLInputElement>) => {
+        const file = event.target.files?.[0]
+        event.target.value = ''
+        if (!file) return
+        setBusy(true)
+        try {
+            onChange(await uploadImage(file, 'sermons'))
+        } catch (err) {
+            toast.error(err instanceof Error ? err.message : 'Upload failed')
+        } finally {
+            setBusy(false)
+        }
+    }
+
+    const handleRemove = async () => {
+        setBusy(true)
+        try {
+            if (isUploadedFile) await deleteImage(value)
+            onChange('')
+        } catch (err) {
+            toast.error(err instanceof Error ? err.message : 'Delete failed')
+        } finally {
+            setBusy(false)
+        }
+    }
+
+    return (
+        <div className="grid gap-2">
+            <input
+                ref={inputRef}
+                type="file"
+                accept="image/png,image/jpeg,image/jpg,image/webp"
+                onChange={handleFileChange}
+                className="sr-only"
+                disabled={disabled || busy}
+                aria-label="Thumbnail image"
+            />
+            {!preview ? (
+                <button
+                    type="button"
+                    onClick={() => inputRef.current?.click()}
+                    disabled={disabled || busy}
+                    className="flex h-40 w-full flex-col items-center justify-center gap-2 rounded-md border-2 border-dashed border-primary bg-primary/10 text-center disabled:cursor-not-allowed disabled:opacity-60"
+                >
+                    <div className="flex size-10 items-center justify-center rounded-full bg-primary/10">
+                        {busy ? <Spinner /> : <Upload className="size-5 text-primary" />}
+                    </div>
+                    <p className="text-sm font-medium">Upload thumbnail (PNG, JPG, WEBP)</p>
+                </button>
+            ) : (
+                <div className="relative h-40 overflow-hidden rounded-md border-2 border-dashed border-primary">
+                    <img src={preview} alt="Sermon thumbnail" className="mx-auto h-full w-auto object-cover" />
+                    <Button
+                        variant="ghost"
+                        size="icon-sm"
+                        onClick={handleRemove}
+                        className="absolute right-2 top-2"
+                        disabled={disabled || busy}
+                    >
+                        {busy ? <Spinner /> : <X />}
+                    </Button>
+                </div>
+            )}
+        </div>
+    )
+}
+
 function ActionButton({
     label,
     onClick,
@@ -443,15 +518,14 @@ function SermonFormDialog({
                             aria-label="Overview"
                         />
                     </label>
-                    <label className="grid gap-1.5 text-sm font-medium">
-                        Thumbnail URL
-                        <Input
+                    <div className="grid gap-1.5 text-sm font-medium">
+                        <span>Thumbnail</span>
+                        <ThumbnailField
                             value={form.thumbnailUrl}
-                            onChange={(event) => set('thumbnailUrl', event.target.value)}
-                            placeholder="https://img.youtube.com/vi/xxx/hq.jpg"
-                            aria-label="Thumbnail URL"
+                            disabled={saving}
+                            onChange={(url) => set('thumbnailUrl', url)}
                         />
-                    </label>
+                    </div>
                     <label className="grid gap-1.5 text-sm font-medium">
                         YouTube link
                         <Input
@@ -461,32 +535,19 @@ function SermonFormDialog({
                             aria-label="YouTube link"
                         />
                     </label>
-                    <div className="grid grid-cols-2 gap-3">
-                        <label className="grid gap-1.5 text-sm font-medium">
-                            Duration (seconds)
-                            <Input
-                                type="number"
-                                min={0}
-                                value={form.durationSec}
-                                onChange={(event) => set('durationSec', event.target.value)}
-                                placeholder="1725 (28:45)"
-                                aria-label="Duration in seconds"
-                            />
-                        </label>
-                        <label className="grid gap-1.5 text-sm font-medium">
-                            Status
-                            <Select value={form.status} onValueChange={(value) => set('status', value)}>
-                                <SelectTrigger aria-label="Status">
-                                    <SelectValue />
-                                </SelectTrigger>
-                                <SelectContent>
-                                    <SelectItem value="PUBLISHED">Published</SelectItem>
-                                    <SelectItem value="DRAFT">Draft</SelectItem>
-                                    <SelectItem value="ARCHIVED">Archived</SelectItem>
-                                </SelectContent>
-                            </Select>
-                        </label>
-                    </div>
+                    <label className="grid gap-1.5 text-sm font-medium sm:max-w-xs">
+                        Status
+                        <Select value={form.status} onValueChange={(value) => set('status', value)}>
+                            <SelectTrigger aria-label="Status">
+                                <SelectValue />
+                            </SelectTrigger>
+                            <SelectContent>
+                                <SelectItem value="PUBLISHED">Published</SelectItem>
+                                <SelectItem value="DRAFT">Draft</SelectItem>
+                                <SelectItem value="ARCHIVED">Archived</SelectItem>
+                            </SelectContent>
+                        </Select>
+                    </label>
                 </div>
                 <DialogFooter>
                     <Button variant="outline" onClick={() => onOpenChange(false)}>
