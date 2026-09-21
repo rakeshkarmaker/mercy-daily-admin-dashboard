@@ -22,6 +22,7 @@ import { Route as _mainPaymentsRouteImport } from './routes/__main/payments'
 import { Route as _mainNotificationsRouteImport } from './routes/__main/notifications'
 import { Route as _mainDailyContentRouteImport } from './routes/__main/daily-content'
 import { Route as _mainCommunityRouteImport } from './routes/__main/community'
+import { Route as _mainChurchesRouteImport } from './routes/__main/churches'
 import { Route as _authVerificationRouteImport } from './routes/__auth/verification'
 import { Route as _authSigninRouteImport } from './routes/__auth/signin'
 import { Route as _authResetPasswordRouteImport } from './routes/__auth/reset-password'
@@ -90,6 +91,11 @@ const _mainCommunityRoute = _mainCommunityRouteImport.update({
   path: '/community',
   getParentRoute: () => _mainRouteRoute,
 } as any)
+const _mainChurchesRoute = _mainChurchesRouteImport.update({
+  id: '/churches',
+  path: '/churches',
+  getParentRoute: () => _mainRouteRoute,
+} as any)
 const _authVerificationRoute = _authVerificationRouteImport.update({
   id: '/verification',
   path: '/verification',
@@ -117,6 +123,7 @@ export interface FileRoutesByFullPath {
   '/reset-password': typeof _authResetPasswordRoute
   '/signin': typeof _authSigninRoute
   '/verification': typeof _authVerificationRoute
+  '/churches': typeof _mainChurchesRoute
   '/community': typeof _mainCommunityRoute
   '/daily-content': typeof _mainDailyContentRoute
   '/notifications': typeof _mainNotificationsRoute
@@ -134,6 +141,7 @@ export interface FileRoutesByTo {
   '/reset-password': typeof _authResetPasswordRoute
   '/signin': typeof _authSigninRoute
   '/verification': typeof _authVerificationRoute
+  '/churches': typeof _mainChurchesRoute
   '/community': typeof _mainCommunityRoute
   '/daily-content': typeof _mainDailyContentRoute
   '/notifications': typeof _mainNotificationsRoute
@@ -153,6 +161,7 @@ export interface FileRoutesById {
   '/__auth/reset-password': typeof _authResetPasswordRoute
   '/__auth/signin': typeof _authSigninRoute
   '/__auth/verification': typeof _authVerificationRoute
+  '/__main/churches': typeof _mainChurchesRoute
   '/__main/community': typeof _mainCommunityRoute
   '/__main/daily-content': typeof _mainDailyContentRoute
   '/__main/notifications': typeof _mainNotificationsRoute
@@ -173,6 +182,7 @@ export interface FileRouteTypes {
     | '/reset-password'
     | '/signin'
     | '/verification'
+    | '/churches'
     | '/community'
     | '/daily-content'
     | '/notifications'
@@ -190,6 +200,7 @@ export interface FileRouteTypes {
     | '/reset-password'
     | '/signin'
     | '/verification'
+    | '/churches'
     | '/community'
     | '/daily-content'
     | '/notifications'
@@ -208,6 +219,7 @@ export interface FileRouteTypes {
     | '/__auth/reset-password'
     | '/__auth/signin'
     | '/__auth/verification'
+    | '/__main/churches'
     | '/__main/community'
     | '/__main/daily-content'
     | '/__main/notifications'
@@ -319,6 +331,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof _mainCommunityRouteImport
       parentRoute: typeof _mainRouteRoute
     }
+    '/__main/churches': {
+      id: '/__main/churches'
+      path: '/churches'
+      fullPath: '/churches'
+      preLoaderRoute: typeof _mainChurchesRouteImport
+      parentRoute: typeof _mainRouteRoute
+    }
     '/__auth/verification': {
       id: '/__auth/verification'
       path: '/verification'
@@ -369,6 +388,7 @@ const _authRouteRouteWithChildren = _authRouteRoute._addFileChildren(
 )
 
 interface _mainRouteRouteChildren {
+  _mainChurchesRoute: typeof _mainChurchesRoute
   _mainCommunityRoute: typeof _mainCommunityRoute
   _mainDailyContentRoute: typeof _mainDailyContentRoute
   _mainNotificationsRoute: typeof _mainNotificationsRoute
@@ -383,6 +403,7 @@ interface _mainRouteRouteChildren {
 }
 
 const _mainRouteRouteChildren: _mainRouteRouteChildren = {
+  _mainChurchesRoute: _mainChurchesRoute,
   _mainCommunityRoute: _mainCommunityRoute,
   _mainDailyContentRoute: _mainDailyContentRoute,
   _mainNotificationsRoute: _mainNotificationsRoute,

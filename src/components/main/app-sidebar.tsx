@@ -6,6 +6,7 @@ import { useAppSettings } from '@/hooks/use-app-settings'
 import { resolveImage } from '@/api/base'
 import { Sidebar, SidebarContent, SidebarFooter, SidebarHeader, SidebarRail } from '@/components/ui/sidebar'
 import {
+    Church,
     ClipboardList,
     Clapperboard,
     CreditCard,
@@ -22,6 +23,7 @@ import {
 const NAV_ITEMS = [
     { title: 'Dashboard', url: '/', icon: <LayoutDashboard className="size-4" /> },
     { title: 'User Management', url: '/user-management', icon: <UsersRound className="size-4" /> },
+    { title: 'Churches', url: '/churches', icon: <Church className="size-4" /> },
     { title: 'Daily Content', url: '/daily-content', icon: <ClipboardList className="size-4" /> },
     { title: 'Prayer Management', url: '/prayer-management', icon: <HandHeart className="size-4" /> },
     { title: 'Sermons', url: '/sermons', icon: <Clapperboard className="size-4" /> },
