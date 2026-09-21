@@ -35,6 +35,7 @@ export async function adminCreateUser(dto: {
     name: string
     email: string
     role?: 'ADMIN' | 'APP_USER'
+    avatarUrl?: string | null
 }): Promise<ApiUser & { temporaryPassword: string }> {
     return request('/users', {
         method: 'POST',
@@ -44,7 +45,7 @@ export async function adminCreateUser(dto: {
 
 export async function adminUpdateUser(
     id: string,
-    dto: { name?: string; email?: string; role?: 'ADMIN' | 'APP_USER' }
+    dto: { name?: string; email?: string; role?: 'ADMIN' | 'APP_USER'; avatarUrl?: string | null },
 ): Promise<ApiUser> {
     return request(`/users/${id}`, {
         method: 'PUT',
@@ -60,10 +61,7 @@ export async function adminToggleUserStatus(id: string, activate: boolean): Prom
     })
 }
 
-export async function adminSetUserStatus(
-    id: string,
-    status: 'ACTIVE' | 'BANNED' | 'DEACTIVATED',
-): Promise<void> {
+export async function adminSetUserStatus(id: string, status: 'ACTIVE' | 'BANNED' | 'DEACTIVATED'): Promise<void> {
     await request(`/users/${id}`, {
         method: 'PUT',
         body: JSON.stringify({ status }),

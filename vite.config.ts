@@ -8,6 +8,15 @@ import tailwindcss from '@tailwindcss/vite'
 
 const config = defineConfig({
     resolve: { tsconfigPaths: true },
+    server: {
+        port: 3000,
+        proxy: {
+            '/uploads': {
+                target: 'http://localhost:5000',
+                changeOrigin: true,
+            },
+        },
+    },
     plugins: [devtools(), tailwindcss(), tanstackRouter({ target: 'react', autoCodeSplitting: true }), viteReact()],
 })
 

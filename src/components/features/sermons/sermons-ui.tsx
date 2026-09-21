@@ -122,18 +122,14 @@ export function SermonsUI({
             {
                 key: 'thumbnail',
                 header: '',
-                render: (row) =>
-                    row.thumbnailUrl ? (
-                        <img
-                            src={resolveImage(row.thumbnailUrl)}
-                            alt=""
-                            className="h-10 w-16 rounded-md border border-border/50 object-cover"
-                        />
-                    ) : (
-                        <div className="flex h-10 w-16 items-center justify-center rounded-md border border-border/50 bg-muted/40 text-muted-foreground">
-                            <Youtube className="size-4" />
-                        </div>
-                    ),
+                // resolveImage falls back to /placeholder.jpg when absent.
+                render: (row) => (
+                    <img
+                        src={resolveImage(row.thumbnailUrl)}
+                        alt={row.title}
+                        className="h-10 w-16 rounded-md border border-border/50 object-cover"
+                    />
+                ),
             },
             {
                 key: 'title',
@@ -283,13 +279,12 @@ export function SermonsUI({
                                 </div>
                             </DialogHeader>
                             <div className="space-y-5 py-1">
-                                {viewing.thumbnailUrl && (
-                                    <img
-                                        src={resolveImage(viewing.thumbnailUrl)}
-                                        alt={viewing.title}
-                                        className="aspect-video w-full rounded-xl border border-border/50 object-cover"
-                                    />
-                                )}
+                                {/* resolveImage falls back to /placeholder.jpg when absent. */}
+                                <img
+                                    src={resolveImage(viewing.thumbnailUrl)}
+                                    alt={viewing.title}
+                                    className="aspect-video w-full rounded-xl border border-border/50 object-cover"
+                                />
                                 <section className="rounded-xl border border-primary/20 bg-primary/5 p-5">
                                     <p className="whitespace-pre-wrap leading-relaxed text-foreground">
                                         {viewing.overview ?? 'No overview yet.'}
@@ -364,15 +359,7 @@ function Metric({ label, value }: { label: string; value: number }) {
  * url — mirroring FormImage, but for plain controlled state instead of
  * the TanStack form field context.
  */
-function ThumbnailField({
-    value,
-    disabled,
-    onChange,
-}: {
-    value: string
-    disabled?: boolean
-    onChange: (url: string) => void
-}) {
+function ThumbnailField({ value, disabled, onChange }: { value: string; disabled?: boolean; onChange: (url: string) => void }) {
     const inputRef = useRef<HTMLInputElement>(null)
     const [busy, setBusy] = useState(false)
 
@@ -520,11 +507,7 @@ function SermonFormDialog({
                     </label>
                     <div className="grid gap-1.5 text-sm font-medium">
                         <span>Thumbnail</span>
-                        <ThumbnailField
-                            value={form.thumbnailUrl}
-                            disabled={saving}
-                            onChange={(url) => set('thumbnailUrl', url)}
-                        />
+                        <ThumbnailField value={form.thumbnailUrl} disabled={saving} onChange={(url) => set('thumbnailUrl', url)} />
                     </div>
                     <label className="grid gap-1.5 text-sm font-medium">
                         YouTube link

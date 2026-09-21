@@ -20,7 +20,7 @@ import {
     DropdownMenuTrigger,
 } from '@/components/ui/dropdown-menu'
 import { SidebarMenu, SidebarMenuButton, SidebarMenuItem, useSidebar } from '@/components/ui/sidebar'
-import { request } from '@/api/base'
+import { request, resolveImage } from '@/api/base'
 import { Link, useNavigate } from '@tanstack/react-router'
 import { BadgeCheckIcon, ChevronsUpDownIcon, LogOutIcon } from 'lucide-react'
 import { toast } from 'sonner'
@@ -52,7 +52,7 @@ export function NavUser({ user }: { user: any }) {
                             className="data-[state=open]:bg-sidebar-accent data-[state=open]:text-sidebar-accent-foreground group-data-[collapsible=icon]:p-1!"
                         >
                             <Avatar className="size-8">
-                                <AvatarImage src={user.image ?? '/profile.png'} alt={user.name} />
+                                <AvatarImage src={resolveImage(user.image)} alt={user.name} />
                                 <AvatarFallback>CN</AvatarFallback>
                             </Avatar>
                             <div className="grid flex-1 text-left text-sm leading-tight">
@@ -71,7 +71,7 @@ export function NavUser({ user }: { user: any }) {
                         <DropdownMenuLabel className="p-0 font-normal">
                             <div className="flex items-center gap-2 px-1 py-1.5 text-left text-sm">
                                 <Avatar className="h-8 w-8 rounded-lg">
-                                    <AvatarImage src={user.image ?? '/profile.png'} alt={user.name} />
+                                    <AvatarImage src={resolveImage(user.image)} alt={user.name} />
                                     <AvatarFallback className="rounded-lg">CN</AvatarFallback>
                                 </Avatar>
                                 <div className="grid flex-1 text-left text-sm leading-tight">

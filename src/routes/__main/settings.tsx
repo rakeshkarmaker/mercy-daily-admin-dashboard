@@ -167,7 +167,7 @@ function ProfileTab() {
 
     // Persists via PATCH /profile/me (self-service account endpoint).
     const updateUser = useMutation({
-        mutationFn: async (data: { name?: string; avatarUrl?: string }) => {
+        mutationFn: async (data: { name?: string; avatarUrl?: string | null }) => {
             return request('/profile/me', {
                 method: 'PATCH',
                 body: JSON.stringify(data),
@@ -198,7 +198,8 @@ function ProfileTab() {
         onSubmit: async ({ value }) => {
             await updateUser.mutateAsync({
                 name: value.name,
-                avatarUrl: value.image,
+                // null clears the avatar (empty string would fail validation)
+                avatarUrl: value.image || null,
             })
         },
     })
@@ -223,7 +224,7 @@ function ProfileTab() {
             {/* Avatar Upload */}
             <div className="flex justify-center my-4">
                 <div className="relative group cursor-pointer inline-block">
-                    <form.AppField name="image">{(field) => <field.FormAvatar folder="owner" />}</form.AppField>
+                    <form.AppField name="image">{(field) => <field.FormAvatar folder="avatars" />}</form.AppField>
                     <div className="absolute inset-0 bg-black/40 rounded-full flex items-center justify-center pointer-events-none">
                         <Camera className="size-5 text-white" />
                     </div>

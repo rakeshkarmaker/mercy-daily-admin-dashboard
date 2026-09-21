@@ -3,6 +3,8 @@ import { SidebarInset, SidebarProvider, SidebarTrigger } from '@/components/ui/s
 import { TooltipProvider } from '@/components/ui/tooltip'
 import { createFileRoute, Outlet, redirect } from '@tanstack/react-router'
 import { ModeToggle } from '@/components/mode-toggle'
+import { useAppSettings } from '@/hooks/use-app-settings'
+import { resolveImage } from '@/api/base'
 
 type AuthUser = {
     id: string
@@ -47,6 +49,8 @@ export const Route = createFileRoute('/__main')({
 
 function RouteComponent() {
     const { user } = Route.useRouteContext()
+    const { logoUrl } = useAppSettings()
+
     return (
         <SidebarProvider>
             <TooltipProvider>
@@ -60,12 +64,15 @@ function RouteComponent() {
                             </h1>
                         </div>
                         <div className="flex items-center gap-4">
+                            {logoUrl && (
+                                <img src={resolveImage(logoUrl)} alt="App logo" className="hidden sm:block h-10 w-auto object-contain" />
+                            )}
                             <div className="hidden sm:flex items-center gap-3">
                                 <div className="flex flex-col items-end">
                                     <span className="text-sm font-medium">{user.name}</span>
                                 </div>
                                 <div className="size-10 rounded-full overflow-hidden bg-muted">
-                                    <img src={user.image || "/placeholder.jpg"} alt={user.name} className="size-full object-cover" />
+                                    <img src={resolveImage(user.image)} alt={user.name} className="size-full object-cover" />
                                 </div>
                             </div>
                             <ModeToggle />

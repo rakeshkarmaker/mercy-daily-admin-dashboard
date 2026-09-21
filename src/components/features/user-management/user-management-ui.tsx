@@ -9,6 +9,7 @@ import { useMemo, useState } from 'react'
 import * as z from 'zod'
 import type { DataTableColumn } from '@/components/shared/data-table'
 import { useAppForm } from '@/components/shared/forms/form-context'
+import { resolveImage } from '@/api/base'
 import type { User } from '@/api/users'
 
 export const userSchema = z.object({
@@ -77,11 +78,10 @@ export function UserManagementUI({
                 type: 'date',
             },
         ],
-        []
+        [],
     )
 
     const isEditMode = editingUser !== null
-
 
     const openEdit = (user: User) => {
         setEditingUser(user)
@@ -106,7 +106,7 @@ export function UserManagementUI({
                 render: (user) => (
                     <div className="flex items-center gap-3">
                         <div className="size-10 rounded-full overflow-hidden shrink-0 bg-muted">
-                            <img src={user.image} alt={user.name} className="size-full object-cover" />
+                            <img src={resolveImage(user.image)} alt={user.name} className="size-full object-cover" />
                         </div>
                         <div className="flex flex-col">
                             <span className="font-semibold text-foreground text-sm">{user.name}</span>
@@ -117,7 +117,11 @@ export function UserManagementUI({
             },
             { key: 'phone', header: 'PHONE', render: (user) => <span className="text-muted-foreground font-medium">{user.phone}</span> },
             { key: 'role', header: 'ROLE', render: (user) => <span className="text-muted-foreground font-medium">{user.role}</span> },
-            { key: 'verification', header: 'VERIFICATION', render: (user) => <span className="text-muted-foreground font-medium">{user.verification}</span> },
+            {
+                key: 'verification',
+                header: 'VERIFICATION',
+                render: (user) => <span className="text-muted-foreground font-medium">{user.verification}</span>,
+            },
             {
                 key: 'status',
                 header: 'STATUS',
@@ -135,20 +139,35 @@ export function UserManagementUI({
                 header: 'ACTION',
                 render: (user) => (
                     <div className="flex items-center justify-center gap-1">
-                        <button onClick={() => openEdit(user)} className="rounded-full p-2 text-primary hover:bg-primary/10" aria-label={`Edit ${user.name}`} title="Edit">
+                        <button
+                            onClick={() => openEdit(user)}
+                            className="rounded-full p-2 text-primary hover:bg-primary/10"
+                            aria-label={`Edit ${user.name}`}
+                            title="Edit"
+                        >
                             <Pencil className="size-4" />
                         </button>
-                        <button onClick={() => onBanUser(user.id, user.status !== 'Banned')} className="rounded-full p-2 text-warning hover:bg-warning/10" aria-label={user.status === 'Banned' ? `Unban ${user.name}` : `Ban ${user.name}`} title={user.status === 'Banned' ? 'Unban' : 'Ban'}>
+                        <button
+                            onClick={() => onBanUser(user.id, user.status !== 'Banned')}
+                            className="rounded-full p-2 text-warning hover:bg-warning/10"
+                            aria-label={user.status === 'Banned' ? `Unban ${user.name}` : `Ban ${user.name}`}
+                            title={user.status === 'Banned' ? 'Unban' : 'Ban'}
+                        >
                             <Ban className="size-4" />
                         </button>
-                        <button onClick={() => onDeleteUser(user.id)} className="rounded-full p-2 text-destructive hover:bg-destructive/10" aria-label={`Delete ${user.name}`} title="Delete">
+                        <button
+                            onClick={() => onDeleteUser(user.id)}
+                            className="rounded-full p-2 text-destructive hover:bg-destructive/10"
+                            aria-label={`Delete ${user.name}`}
+                            title="Delete"
+                        >
                             <Trash2 className="size-4" />
                         </button>
                     </div>
                 ),
             },
         ],
-        [onBanUser, onDeleteUser, onToggleStatus]
+        [onBanUser, onDeleteUser, onToggleStatus],
     )
 
     return (
@@ -157,7 +176,12 @@ export function UserManagementUI({
             <div className="flex flex-col lg:flex-row lg:items-center justify-between border-b border-border/50">
                 <PageHeader title="User Management" className="shrink-0 text-xl font-bold text-chart-1" />
                 <div className="flex items-center flex-wrap gap-3">
-                    <SearchInput value={searchQuery} onValueChange={onSearchChange} placeholder="Search..." className="w-full sm:w-62.5 bg-card rounded-full h-10 shadow-sm border-border" />
+                    <SearchInput
+                        value={searchQuery}
+                        onValueChange={onSearchChange}
+                        placeholder="Search..."
+                        className="w-full sm:w-62.5 bg-card rounded-full h-10 shadow-sm border-border"
+                    />
                     <FilterBuilder options={filterOptions} filters={filters} onFiltersChange={onFiltersChange} />
                 </div>
             </div>
@@ -182,9 +206,13 @@ export function UserManagementUI({
             >
                 <DialogContent className="sm:max-w-2xl p-0 overflow-hidden bg-dialog-bg border-dialog-border">
                     <DialogHeader className="px-6 py-5 border-b border-dialog-border/70 m-0">
-                        <DialogTitle className="text-3xl font-extrabold text-dialog-text">{isEditMode ? 'Edit User' : 'Add New User'}</DialogTitle>
+                        <DialogTitle className="text-3xl font-extrabold text-dialog-text">
+                            {isEditMode ? 'Edit User' : 'Add New User'}
+                        </DialogTitle>
                         <DialogDescription className="text-[15px] font-medium text-dialog-muted mt-1">
-                            {isEditMode ? `Modify details for ${editingUser?.name}.` : 'Enter the details of the new user to register them.'}
+                            {isEditMode
+                                ? `Modify details for ${editingUser?.name}.`
+                                : 'Enter the details of the new user to register them.'}
                         </DialogDescription>
                     </DialogHeader>
 
@@ -202,7 +230,15 @@ export function UserManagementUI({
                                           verification: editingUser.verification,
                                           status: editingUser.status,
                                       }
-                                    : { name: '', email: '', image: '', phone: '', role: 'User', verification: 'Unverified', status: 'Active' }
+                                    : {
+                                          name: '',
+                                          email: '',
+                                          image: '',
+                                          phone: '',
+                                          role: 'User',
+                                          verification: 'Unverified',
+                                          status: 'Active',
+                                      }
                             }
                             onSubmit={handleFormSubmit}
                             submitLabel={isEditMode ? 'Save Changes' : 'Register User'}
@@ -251,11 +287,15 @@ function UserForm({
                 </div>
 
                 <div className="md:col-span-2">
-                    <form.AppField name="email">{(field) => <field.FormInput type="email" label="Email" placeholder="Enter email" />}</form.AppField>
+                    <form.AppField name="email">
+                        {(field) => <field.FormInput type="email" label="Email" placeholder="Enter email" />}
+                    </form.AppField>
                 </div>
-                
+
                 <div className="md:col-span-2">
-                    <form.AppField name="phone">{(field) => <field.FormInput type="tel" label="Phone" placeholder="Enter phone number" />}</form.AppField>
+                    <form.AppField name="phone">
+                        {(field) => <field.FormInput type="tel" label="Phone" placeholder="Enter phone number" />}
+                    </form.AppField>
                 </div>
 
                 <div className="md:col-span-1">
@@ -299,5 +339,3 @@ function UserForm({
         </form>
     )
 }
-
-

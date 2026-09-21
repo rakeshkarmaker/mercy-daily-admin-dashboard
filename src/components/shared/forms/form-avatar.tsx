@@ -39,9 +39,13 @@ export function FormAvatar({ folder = 'avatars', disabled, accept = 'image/png,i
     const handleDelete = () => {
         if (!value) return
 
+        // Only server-stored uploads can be deleted on the backend; legacy
+        // absolute https URLs are not ours to remove.
+        const deletable = value.startsWith('/uploads/')
+
         startDelete(async () => {
             try {
-                await deleteImage(value)
+                if (deletable) await deleteImage(value)
                 field.handleChange('')
             } catch (err) {
                 toast.error(err instanceof Error ? err.message : 'Delete failed')
@@ -70,7 +74,7 @@ export function FormAvatar({ folder = 'avatars', disabled, accept = 'image/png,i
                 className="group relative size-16 overflow-hidden rounded-full border border-border cursor-pointer disabled:cursor-not-allowed disabled:opacity-60"
                 aria-label="Change avatar"
             >
-                <img src={resolveImage(value)} alt="Avatar" crossOrigin="anonymous" className="h-full w-full object-cover" />
+                <img src={resolveImage(value)} alt="Avatar" className="h-full w-full object-cover" />
                 <span className="absolute inset-0 flex items-center justify-center bg-black/40 text-white opacity-0 transition-opacity group-hover:opacity-100">
                     {isUploading ? <Spinner className="text-white" /> : <Camera className="size-5" />}
                 </span>

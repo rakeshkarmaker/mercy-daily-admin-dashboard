@@ -15,7 +15,7 @@ import {
     toUiUser,
 } from '@/api/users'
 import type { User } from '@/api/users'
-import type { userSchema } from '@/components/features/user-management/user-management-ui';
+import type { userSchema } from '@/components/features/user-management/user-management-ui'
 import { UserManagementUI } from '@/components/features/user-management/user-management-ui'
 
 const searchSchema = z.object({
@@ -68,6 +68,7 @@ function RouteComponent() {
                     name: values.name,
                     email: values.email,
                     role: toApiRole(values.role),
+                    avatarUrl: values.image || null,
                 })
                 toast.success('User updated')
             } else {
@@ -75,6 +76,7 @@ function RouteComponent() {
                     name: values.name,
                     email: values.email,
                     role: toApiRole(values.role),
+                    avatarUrl: values.image || undefined,
                 })
                 toast.success(`User created — temporary password: ${created.temporaryPassword}`, {
                     duration: 15000,

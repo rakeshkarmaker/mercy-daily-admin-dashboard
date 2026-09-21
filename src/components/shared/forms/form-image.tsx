@@ -2,7 +2,7 @@ import { useFieldContext } from '@/components/shared/forms/form-context'
 import { Button } from '@/components/ui/button'
 import { Field, FieldError, FieldLabel } from '@/components/shared/field'
 import { Spinner } from '@/components/shared/spinner'
-import { baseURL, deleteImage, uploadImage } from '@/api'
+import { deleteImage, resolveImage, uploadImage } from '@/api'
 import { Upload, X } from 'lucide-react'
 import { useRef, useTransition } from 'react'
 import { toast } from 'sonner'
@@ -41,9 +41,13 @@ export function FormImage({ label, folder, disabled, accept = 'image/png,image/j
         const currentUrl = field.state.value
         if (!currentUrl) return
 
+        // Only server-stored uploads can be deleted on the backend; legacy
+        // absolute https URLs are not ours to remove.
+        const deletable = currentUrl.startsWith('/uploads/')
+
         startDelete(async () => {
             try {
-                await deleteImage(currentUrl)
+                if (deletable) await deleteImage(currentUrl)
                 field.handleChange('')
             } catch (err) {
                 toast.error(err instanceof Error ? err.message : 'Delete failed')
@@ -51,7 +55,7 @@ export function FormImage({ label, folder, disabled, accept = 'image/png,image/j
         })
     }
 
-    const previewUrl = field.state.value ? `${baseURL}${field.state.value}` : null
+    const previewUrl = field.state.value ? resolveImage(field.state.value) : null
 
     return (
         <Field data-invalid={isInvalid}>
@@ -88,7 +92,6 @@ export function FormImage({ label, folder, disabled, accept = 'image/png,image/j
                     <img
                         src={previewUrl}
                         alt={field.state.value || undefined}
-                        crossOrigin="anonymous"
                         className="h-full w-auto mx-auto object-cover"
                     />
                     <Button

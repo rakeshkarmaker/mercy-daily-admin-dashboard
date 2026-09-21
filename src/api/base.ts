@@ -1,6 +1,6 @@
-// The backend serves routes at the root (no /api/v1 prefix) on port 3000.
+// The backend serves routes at the root (no /api/v1 prefix) on port 5000.
 // VITE_APP_SERVER may point at a deployed API; default to local dev.
-export const baseURL = (import.meta.env.VITE_APP_SERVER as string | undefined) ?? 'http://localhost:3000'
+export const baseURL = (import.meta.env.VITE_APP_SERVER as string | undefined) ?? 'http://localhost:5000'
 export const apiPrefix = ''
 
 export type Paginated<T> = {
@@ -133,6 +133,7 @@ export function toQuery(params: Record<string, string | number | boolean | undef
     const s = usp.toString()
     return s ? `?${s}` : ''
 }
+
 
 export function resolveImage(image: string | null | undefined): string {
     if (!image) return '/placeholder.jpg'
