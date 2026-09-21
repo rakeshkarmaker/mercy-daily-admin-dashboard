@@ -1,9 +1,12 @@
 import { request } from '@/api/base'
 
+export type ChurchStatus = 'VERIFIED' | 'UNVERIFIED'
+
 export type Church = {
     id: string
     name: string
     address: string | null
+    status: ChurchStatus
     createdAt: string
     updatedAt: string
 }
@@ -11,6 +14,7 @@ export type Church = {
 export type ChurchInput = {
     name: string
     address?: string | null
+    status?: ChurchStatus
 }
 
 export function listChurches() {
@@ -38,5 +42,11 @@ export function updateChurch(id: string, input: Partial<ChurchInput>) {
 export function deleteChurch(id: string) {
     return request<{ message: string }>(`/churches/${id}`, {
         method: 'DELETE',
+    })
+}
+
+export function toggleChurchStatus(id: string) {
+    return request<Church>(`/churches/${id}/toggle-status`, {
+        method: 'PATCH',
     })
 }

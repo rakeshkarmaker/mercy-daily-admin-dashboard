@@ -18,54 +18,74 @@ import {
 import { Input } from '@/components/ui/input'
 import { Textarea } from '@/components/ui/textarea'
 import { Label } from '@/components/ui/label'
+import { Switch } from '@/components/ui/switch'
+import { Tabs, TabsList, TabsTrigger } from '@/components/ui/tabs'
 import {
+    BadgeCheck,
     Building2,
     Calendar,
+    CheckCircle2,
     Church as ChurchIcon,
+    Clock,
     Eye,
     MapPin,
     Pencil,
     Plus,
+    ShieldAlert,
     Trash2,
 } from 'lucide-react'
-import type { Church, ChurchInput } from '@/api/churches'
+import type { Church, ChurchInput, ChurchStatus } from '@/api/churches'
+
+export type ChurchStatusFilter = 'ALL' | 'VERIFIED' | 'UNVERIFIED'
 
 export interface ChurchesUIProps {
     churches: Church[]
     totalChurches: number
+    verifiedCount: number
+    unverifiedCount: number
     loading?: boolean
     page: number
     limit: number
     searchQuery: string
+    statusFilter: ChurchStatusFilter
+    onStatusFilterChange: (status: ChurchStatusFilter) => void
     onSearchChange: (value: string) => void
     onResetSearch: () => void
     onCreateChurch: (input: ChurchInput) => Promise<void>
     onUpdateChurch: (id: string, input: Partial<ChurchInput>) => Promise<void>
     onDeleteChurch: (id: string) => Promise<void>
+    onToggleStatus: (id: string) => Promise<void>
 }
 
 type FormState = {
     name: string
     address: string
+    status: ChurchStatus
 }
 
 const emptyForm: FormState = {
     name: '',
     address: '',
+    status: 'UNVERIFIED',
 }
 
 export function ChurchesUI({
     churches,
     totalChurches,
+    verifiedCount,
+    unverifiedCount,
     loading = false,
     page,
     limit,
     searchQuery,
+    statusFilter,
+    onStatusFilterChange,
     onSearchChange,
     onResetSearch,
     onCreateChurch,
     onUpdateChurch,
     onDeleteChurch,
+    onToggleStatus,
 }: ChurchesUIProps) {
     const [formOpen, setFormOpen] = useState(false)
     const [editing, setEditing] = useState<Church | null>(null)
@@ -73,17 +93,7 @@ export function ChurchesUI({
     const [viewing, setViewing] = useState<Church | null>(null)
     const [deleting, setDeleting] = useState<Church | null>(null)
     const [saving, setSaving] = useState(false)
-
-    // KPI Metrics calculation
-    const churchesWithAddress = churches.filter((c) => Boolean(c.address && c.address.trim().length > 0)).length
-    const now = new Date()
-    const thisMonth = churches.filter((c) => {
-        const created = new Date(c.createdAt)
-        return (
-            created.getMonth() === now.getMonth() &&
-            created.getFullYear() === now.getFullYear()
-        )
-    }).length
+    const [togglingId, setTogglingId] = useState<string | null>(null)
 
     const openCreate = () => {
         setEditing(null)
@@ -96,6 +106,7 @@ export function ChurchesUI({
         setForm({
             name: church.name,
             address: church.address ?? '',
+            status: church.status ?? 'UNVERIFIED',
         })
         setFormOpen(true)
     }
@@ -110,6 +121,7 @@ export function ChurchesUI({
                 await onUpdateChurch(editing.id, {
                     name: form.name.trim(),
                     address: form.address.trim() || null,
+                    status: form.status,
                 })
             } else {
                 await onCreateChurch({
@@ -122,6 +134,15 @@ export function ChurchesUI({
             setEditing(null)
         } finally {
             setSaving(false)
+        }
+    }
+
+    const handleToggle = async (id: string) => {
+        try {
+            setTogglingId(id)
+            await onToggleStatus(id)
+        } finally {
+            setTogglingId(null)
         }
     }
 
@@ -164,8 +185,47 @@ export function ChurchesUI({
             ),
         },
         {
+            key: 'status',
+            header: 'Verification Status',
+            render: (church) => {
+                const isVerified = church.status === 'VERIFIED'
+                return (
+                    <div className="flex items-center gap-2.5">
+                        {isVerified ? (
+                            <Badge
+                                variant="outline"
+                                className="bg-success/10 text-success border-success/20 gap-1 font-medium py-0.5 px-2"
+                            >
+                                <CheckCircle2 className="size-3" />
+                                <span>Verified</span>
+                            </Badge>
+                        ) : (
+                            <Badge
+                                variant="outline"
+                                className="bg-amber-500/10 text-amber-600 dark:text-amber-400 border-amber-500/20 gap-1 font-medium py-0.5 px-2"
+                            >
+                                <Clock className="size-3" />
+                                <span>Unverified</span>
+                            </Badge>
+                        )}
+                        <div
+                            className="flex items-center"
+                            title={isVerified ? 'Click to mark as Unverified' : 'Click to Verify Church'}
+                        >
+                            <Switch
+                                size="sm"
+                                checked={isVerified}
+                                disabled={togglingId === church.id}
+                                onCheckedChange={() => handleToggle(church.id)}
+                            />
+                        </div>
+                    </div>
+                )
+            },
+        },
+        {
             key: 'createdAt',
-            header: 'Date Registered',
+            header: 'Registered On',
             render: (church) => (
                 <div className="flex items-center gap-1.5 text-xs text-muted-foreground whitespace-nowrap">
                     <Calendar className="size-3.5" />
@@ -221,7 +281,7 @@ export function ChurchesUI({
             <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
                 <PageHeader
                     title="Churches & Ministries"
-                    description="Maintain church directory, coordinate regional ministry locations, and oversee member congregations."
+                    description="Maintain church directory, coordinate regional ministry locations, and oversee verification status."
                 />
                 <Button onClick={openCreate} className="gap-2 shrink-0">
                     <Plus className="size-4" />
@@ -234,41 +294,55 @@ export function ChurchesUI({
                 <StatCard
                     label="Total Registered Churches"
                     value={totalChurches}
-                    icon={ChurchIcon}
-                    color="emerald"
-                />
-                <StatCard
-                    label="With Physical Address"
-                    value={churchesWithAddress}
                     icon={Building2}
                     color="blue"
                 />
                 <StatCard
-                    label="Registered This Month"
-                    value={thisMonth}
-                    icon={Calendar}
+                    label="Verified Congregations"
+                    value={verifiedCount}
+                    icon={BadgeCheck}
+                    color="emerald"
+                />
+                <StatCard
+                    label="Pending / Unverified"
+                    value={unverifiedCount}
+                    icon={ShieldAlert}
                     color="amber"
                 />
             </div>
 
             {/* Filter & Search Bar */}
             <div className="flex flex-col sm:flex-row items-stretch sm:items-center justify-between gap-3">
-                <SearchInput
-                    placeholder="Search churches by name or address..."
-                    value={searchQuery}
-                    onChange={onSearchChange}
-                    className="w-full sm:max-w-xs"
-                />
-                {searchQuery && (
-                    <Button
-                        variant="ghost"
-                        size="sm"
-                        onClick={onResetSearch}
-                        className="text-xs text-muted-foreground hover:text-foreground self-start sm:self-auto"
-                    >
-                        Clear search
-                    </Button>
-                )}
+                <Tabs
+                    value={statusFilter}
+                    onValueChange={(val) => onStatusFilterChange(val as ChurchStatusFilter)}
+                    className="w-auto"
+                >
+                    <TabsList>
+                        <TabsTrigger value="ALL">All Churches ({totalChurches})</TabsTrigger>
+                        <TabsTrigger value="VERIFIED">Verified ({verifiedCount})</TabsTrigger>
+                        <TabsTrigger value="UNVERIFIED">Unverified ({unverifiedCount})</TabsTrigger>
+                    </TabsList>
+                </Tabs>
+
+                <div className="flex items-center gap-2">
+                    <SearchInput
+                        placeholder="Search by name or address..."
+                        value={searchQuery}
+                        onValueChange={onSearchChange}
+                        className="w-full sm:max-w-xs"
+                    />
+                    {searchQuery && (
+                        <Button
+                            variant="ghost"
+                            size="sm"
+                            onClick={onResetSearch}
+                            className="text-xs text-muted-foreground hover:text-foreground shrink-0"
+                        >
+                            Clear
+                        </Button>
+                    )}
+                </div>
             </div>
 
             {/* Data Table */}
@@ -295,8 +369,8 @@ export function ChurchesUI({
                             </DialogTitle>
                             <DialogDescription>
                                 {editing
-                                    ? 'Update details for this church congregation.'
-                                    : 'Register a new church into the Mercy Daily network.'}
+                                    ? 'Update details or verification status for this church congregation.'
+                                    : 'Register a new church into the Mercy Daily network (defaults to Unverified).'}
                             </DialogDescription>
                         </DialogHeader>
 
@@ -332,9 +406,34 @@ export function ChurchesUI({
                                     maxLength={500}
                                 />
                                 <span className="text-xs text-muted-foreground">
-                                    Optional physical address or regional location. Max 500 characters.
+                                    Physical address or regional location. Max 500 characters.
                                 </span>
                             </div>
+
+                            {editing && (
+                                <div className="flex items-center justify-between p-3 rounded-lg border border-border/60 bg-muted/30">
+                                    <div className="flex flex-col gap-0.5">
+                                        <Label htmlFor="verification-toggle" className="text-sm font-medium cursor-pointer">
+                                            Verification Status
+                                        </Label>
+                                        <span className="text-xs text-muted-foreground">
+                                            {form.status === 'VERIFIED'
+                                                ? 'Church is marked as official and verified.'
+                                                : 'Church is pending administrative verification.'}
+                                        </span>
+                                    </div>
+                                    <Switch
+                                        id="verification-toggle"
+                                        checked={form.status === 'VERIFIED'}
+                                        onCheckedChange={(checked) =>
+                                            setForm((prev) => ({
+                                                ...prev,
+                                                status: checked ? 'VERIFIED' : 'UNVERIFIED',
+                                            }))
+                                        }
+                                    />
+                                </div>
+                            )}
                         </div>
 
                         <DialogFooter className="gap-2 sm:gap-0">
@@ -373,6 +472,29 @@ export function ChurchesUI({
 
                     {viewing && (
                         <div className="flex flex-col gap-3 py-3 text-sm">
+                            <div className="flex items-center justify-between p-3 rounded-lg bg-muted/40 border border-border/50">
+                                <span className="text-xs font-medium text-muted-foreground uppercase tracking-wider">
+                                    Status
+                                </span>
+                                {viewing.status === 'VERIFIED' ? (
+                                    <Badge
+                                        variant="outline"
+                                        className="bg-success/10 text-success border-success/20 gap-1 font-medium"
+                                    >
+                                        <CheckCircle2 className="size-3.5" />
+                                        <span>Verified Church</span>
+                                    </Badge>
+                                ) : (
+                                    <Badge
+                                        variant="outline"
+                                        className="bg-amber-500/10 text-amber-600 dark:text-amber-400 border-amber-500/20 gap-1 font-medium"
+                                    >
+                                        <Clock className="size-3.5" />
+                                        <span>Unverified Submission</span>
+                                    </Badge>
+                                )}
+                            </div>
+
                             <div className="flex flex-col gap-1 p-3 rounded-lg bg-muted/40 border border-border/50">
                                 <span className="text-xs font-medium text-muted-foreground uppercase tracking-wider">
                                     Full Address
