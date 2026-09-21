@@ -13,7 +13,7 @@ import * as z from 'zod'
 import JoditEditor from 'jodit-react'
 import { Dialog, DialogContent, DialogTitle } from '@/components/ui/dialog'
 import { Badge } from '@/components/ui/badge'
-import { staticContentApi } from '@/api/settings'
+import { appSettingsApi, staticContentApi } from '@/api/settings'
 
 export const Route = createFileRoute('/__main/settings')({
     component: RouteComponent,
@@ -37,11 +37,6 @@ const profileSchema = z.object({
     email: z.email('Enter a valid email address'),
 })
 
-const generalSchema = z.object({
-    appName: z.string().min(1, 'Enter App Name'),
-    logoUrl: z.string(),
-})
-
 const securitySchema = z.object({
     currentPassword: z.string().min(1, 'Enter your current password'),
     newPassword: z.string().min(6, 'Password must be at least 6 characters'),
@@ -61,7 +56,7 @@ function RouteComponent() {
                 {/* Left Sidebar Tabs */}
                 <nav className="flex flex-row md:flex-col gap-2 bg-card border rounded-xl p-3 h-fit overflow-x-auto">
                     {TABS.map((tab) => {
-                        const Icon = tab.icon;
+                        const Icon = tab.icon
                         return (
                             <Button
                                 key={tab.id}
@@ -92,12 +87,44 @@ function RouteComponent() {
 // ─── General Tab ────────────────────────────────────────────────────────────────
 
 function GeneralTab() {
+    const queryClient = useQueryClient()
+    const { data, isLoading } = useQuery({
+        queryKey: ['app-settings'],
+        queryFn: appSettingsApi.get,
+    })
+
+    const saveSettings = useMutation({
+        mutationFn: (logoUrl: string | null) => appSettingsApi.update({ logoUrl }),
+        onSuccess: () => {
+            toast.success('Settings saved successfully')
+            queryClient.invalidateQueries({ queryKey: ['app-settings'] })
+        },
+        onError: (error) => toast.error(error.message),
+    })
+
+    if (isLoading) {
+        return (
+            <div className="flex flex-col justify-center items-center h-96 gap-4 text-muted-foreground">
+                <Loader2 className="size-8 animate-spin" />
+                <p>Loading settings...</p>
+            </div>
+        )
+    }
+
+    return (
+        <GeneralForm
+            key={data?.updatedAt ?? 'initial'}
+            initialLogoUrl={data?.logoUrl ?? ''}
+            onSave={(logoUrl) => saveSettings.mutateAsync(logoUrl)}
+        />
+    )
+}
+
+function GeneralForm({ initialLogoUrl, onSave }: { initialLogoUrl: string; onSave: (logoUrl: string | null) => Promise<unknown> }) {
     const form = useAppForm({
-        defaultValues: { appName: '', logoUrl: '' },
-        validators: { onChange: generalSchema },
+        defaultValues: { logoUrl: initialLogoUrl },
         onSubmit: async ({ value }) => {
-            console.log('General saved:', value)
-            toast.success("Settings saved successfully")
+            await onSave(value.logoUrl || null)
         },
     })
 
@@ -111,38 +138,20 @@ function GeneralTab() {
         >
             <div>
                 <h3 className="text-xl font-semibold text-foreground">General</h3>
+                <p className="text-sm text-muted-foreground mt-0.5">
+                    Upload the app logo shown across the app. The app name is fixed at the platform level and cannot be changed here.
+                </p>
             </div>
 
             <Separator />
 
             <div className="grid grid-cols-1 gap-5 max-w-2xl">
-                <form.AppField name="appName">
-                    {(field) => (
-                        <field.FormInput
-                            label="App Name"
-                            placeholder="Enter App Name"
-                        />
-                    )}
-                </form.AppField>
-
-                <form.AppField name="logoUrl">
-                    {(field) => (
-                        <field.FormInput
-                            label="Logo URL"
-                            placeholder="Enter Logo URL"
-                        />
-                    )}
-                </form.AppField>
+                <form.AppField name="logoUrl">{(field) => <field.FormImage label="App logo" folder="branding" />}</form.AppField>
             </div>
 
             <div className="mt-2">
                 <form.AppForm>
-                    <Button 
-                        type="submit" 
-                        variant="default"
-                        disabled={form.state.isSubmitting}
-                        className="w-full sm:w-62.5"
-                    >
+                    <Button type="submit" variant="default" disabled={form.state.isSubmitting} className="w-full sm:w-62.5">
                         Save
                     </Button>
                 </form.AppForm>
@@ -174,7 +183,7 @@ function ProfileTab() {
                 image: (updated as any).avatarUrl ?? '',
             }
             localStorage.setItem('auth_user', JSON.stringify(next))
-            toast.success("Profile updated successfully")
+            toast.success('Profile updated successfully')
         },
         onError: (error) => toast.error(error.message),
     })
@@ -234,12 +243,7 @@ function ProfileTab() {
                 <form.AppField name="email">
                     {(field) => (
                         <div className="relative">
-                            <field.FormInput
-                                type="email"
-                                label="Email Address"
-                                placeholder="Enter your email"
-                                readOnly
-                            />
+                            <field.FormInput type="email" label="Email Address" placeholder="Enter your email" readOnly />
                         </div>
                     )}
                 </form.AppField>
@@ -248,12 +252,7 @@ function ProfileTab() {
             {/* Save Button */}
             <div className="mt-4">
                 <form.AppForm>
-                    <Button 
-                        type="submit" 
-                        variant="default"
-                        disabled={form.state.isSubmitting}
-                        className="w-full sm:w-87.5"
-                    >
+                    <Button type="submit" variant="default" disabled={form.state.isSubmitting} className="w-full sm:w-87.5">
                         Save
                     </Button>
                 </form.AppForm>
@@ -272,11 +271,7 @@ function SecurityTab() {
     // tokenVersion on success, invalidating every outstanding session —
     // including this one — so the user is signed back in.
     const changePassword = useMutation({
-        mutationFn: async (data: {
-            oldPassword: string
-            newPassword: string
-            confirmPassword: string
-        }) => {
+        mutationFn: async (data: { oldPassword: string; newPassword: string; confirmPassword: string }) => {
             return request<{ message: string }>('/profile/me/password', {
                 method: 'PUT',
                 body: JSON.stringify(data),
@@ -324,31 +319,17 @@ function SecurityTab() {
                 <div className="grid grid-cols-1 gap-4 max-w-md">
                     <form.AppField name="currentPassword">
                         {(field) => (
-                            <field.FormInput
-                                type="password"
-                                label={'Current Password'}
-                                placeholder={'Current Password Placeholder'}
-                            />
+                            <field.FormInput type="password" label={'Current Password'} placeholder={'Current Password Placeholder'} />
                         )}
                     </form.AppField>
 
                     <form.AppField name="newPassword">
-                        {(field) => (
-                            <field.FormInput
-                                type="password"
-                                label={'New Password'}
-                                placeholder={'New Password Placeholder'}
-                            />
-                        )}
+                        {(field) => <field.FormInput type="password" label={'New Password'} placeholder={'New Password Placeholder'} />}
                     </form.AppField>
 
                     <form.AppField name="confirmPassword">
                         {(field) => (
-                            <field.FormInput
-                                type="password"
-                                label={'Confirm Password'}
-                                placeholder={'Confirm Password Placeholder'}
-                            />
+                            <field.FormInput type="password" label={'Confirm Password'} placeholder={'Confirm Password Placeholder'} />
                         )}
                     </form.AppField>
                 </div>
@@ -369,12 +350,7 @@ function SecurityTab() {
             </div>
             <div className="mt-4">
                 <form.AppForm>
-                    <Button 
-                        type="submit" 
-                        variant="default"
-                        disabled={form.state.isSubmitting}
-                        className="w-full sm:w-62.5"
-                    >
+                    <Button type="submit" variant="default" disabled={form.state.isSubmitting} className="w-full sm:w-62.5">
                         Save Changes
                     </Button>
                 </form.AppForm>
@@ -400,7 +376,6 @@ function PrivacyPolicyTab() {
     const updateContent = useMutation({
         mutationFn: () =>
             staticContentApi.update('privacy-policy', {
-                slug: data?.slug || 'privacy-policy',
                 title: data?.title || 'Privacy Policy',
                 content: content,
             }),
@@ -438,11 +413,29 @@ function PrivacyPolicyTab() {
             height: 512,
             readonly: !isEditing,
             buttons: [
-                'bold', 'italic', 'underline', 'strike', 'subscript', 'superscript', '|',
-                'font', 'fontsize', 'paragraph', '|',
-                'align', 'ul', 'ol', 'outdent', 'indent', '|',
-                'table', 'hr', 'link', '|',
-                'undo', 'redo',
+                'bold',
+                'italic',
+                'underline',
+                'strike',
+                'subscript',
+                'superscript',
+                '|',
+                'font',
+                'fontsize',
+                'paragraph',
+                '|',
+                'align',
+                'ul',
+                'ol',
+                'outdent',
+                'indent',
+                '|',
+                'table',
+                'hr',
+                'link',
+                '|',
+                'undo',
+                'redo',
             ],
             placeholder: 'Start typing...',
         }),
@@ -478,7 +471,11 @@ function PrivacyPolicyTab() {
             </div>
 
             <div className="flex flex-col gap-4 mt-2">
-                <p className="text-sm font-medium text-foreground">Last updated: June 8, 2026 by Dianne Plummer.</p>
+                <p className="text-sm font-medium text-foreground">
+                    {data?.updatedAt
+                        ? `Last updated: ${new Date(data.updatedAt).toLocaleDateString('en-US', { year: 'numeric', month: 'long', day: 'numeric' })}${data.updatedBy ? ` by ${data.updatedBy}` : ''}.`
+                        : 'Not published yet.'}
+                </p>
 
                 <div className="flex flex-col sm:flex-row gap-4 w-full">
                     {!isEditing ? (
@@ -590,7 +587,6 @@ function TermsAndConditionsTab() {
     const updateContent = useMutation({
         mutationFn: () =>
             staticContentApi.update('terms-and-conditions', {
-                slug: data?.slug || 'terms-and-conditions',
                 title: data?.title || 'Terms and Conditions',
                 content: content,
             }),
@@ -628,11 +624,29 @@ function TermsAndConditionsTab() {
             height: 512,
             readonly: !isEditing,
             buttons: [
-                'bold', 'italic', 'underline', 'strike', 'subscript', 'superscript', '|',
-                'font', 'fontsize', 'paragraph', '|',
-                'align', 'ul', 'ol', 'outdent', 'indent', '|',
-                'table', 'hr', 'link', '|',
-                'undo', 'redo',
+                'bold',
+                'italic',
+                'underline',
+                'strike',
+                'subscript',
+                'superscript',
+                '|',
+                'font',
+                'fontsize',
+                'paragraph',
+                '|',
+                'align',
+                'ul',
+                'ol',
+                'outdent',
+                'indent',
+                '|',
+                'table',
+                'hr',
+                'link',
+                '|',
+                'undo',
+                'redo',
             ],
             placeholder: 'Start typing...',
         }),
@@ -668,7 +682,11 @@ function TermsAndConditionsTab() {
             </div>
 
             <div className="flex flex-col gap-4 mt-2">
-                <p className="text-sm font-medium text-foreground">Last updated: June 8, 2026 by Dianne Plummer.</p>
+                <p className="text-sm font-medium text-foreground">
+                    {data?.updatedAt
+                        ? `Last updated: ${new Date(data.updatedAt).toLocaleDateString('en-US', { year: 'numeric', month: 'long', day: 'numeric' })}${data.updatedBy ? ` by ${data.updatedBy}` : ''}.`
+                        : 'Not published yet.'}
+                </p>
 
                 <div className="flex flex-col sm:flex-row gap-4 w-full">
                     {!isEditing ? (
@@ -727,7 +745,9 @@ function TermsAndConditionsTab() {
                                 <SlidersHorizontal className="size-5" />
                             </div>
                             <div>
-                                <DialogTitle className="text-lg font-bold tracking-tight text-white">Terms & Conditions Preview</DialogTitle>
+                                <DialogTitle className="text-lg font-bold tracking-tight text-white">
+                                    Terms & Conditions Preview
+                                </DialogTitle>
                                 <p className="text-xs text-white/50">Draft Version (Live View)</p>
                             </div>
                         </div>
@@ -764,4 +784,3 @@ function TermsAndConditionsTab() {
         </div>
     )
 }
-

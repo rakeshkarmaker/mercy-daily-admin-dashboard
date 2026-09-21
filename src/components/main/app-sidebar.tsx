@@ -2,6 +2,8 @@
 
 import { NavMain } from '@/components/main/nav-main'
 import { NavUser } from '@/components/main/nav-user'
+import { useAppSettings } from '@/hooks/use-app-settings'
+import { resolveImage } from '@/api/base'
 import { Sidebar, SidebarContent, SidebarFooter, SidebarHeader, SidebarRail } from '@/components/ui/sidebar'
 import {
     ClipboardList,
@@ -32,16 +34,24 @@ const NAV_ITEMS = [
 ]
 
 export function AppSidebar({ user, ...props }: React.ComponentProps<typeof Sidebar> & { user: any }) {
+    const { logoUrl } = useAppSettings()
+
     return (
         <Sidebar collapsible="icon" {...props}>
             <SidebarHeader className="flex items-center justify-center px-4 py-3 group-data-[collapsible=icon]:px-0">
                 <div className="flex h-11 items-center px-5 group-data-[collapsible=icon]:px-0 group-data-[collapsible=icon]:w-11 group-data-[collapsible=icon]:justify-center group-data-[collapsible=icon]:mx-auto">
+                    {/* Collapsed rail: uploaded logo, else the static mark. */}
                     <img
-                        src="/favicon.svg"
+                        src={logoUrl ? resolveImage(logoUrl) : '/favicon.svg'}
                         alt="Icon"
-                        className="size-8 shrink-0 object-contain hidden group-data-[collapsible=icon]:block"
+                        className="size-8 shrink-0 rounded object-contain hidden group-data-[collapsible=icon]:block"
                     />
-                    <img src="/mercy-logo.svg" alt="Logo" className="h-14 w-auto object-contain group-data-[collapsible=icon]:hidden" />
+                    {/* Expanded: uploaded logo, else the full wordmark. */}
+                    <img
+                        src={logoUrl ? resolveImage(logoUrl) : '/mercy-logo.svg'}
+                        alt="Logo"
+                        className="h-14 w-auto object-contain group-data-[collapsible=icon]:hidden"
+                    />
                 </div>
             </SidebarHeader>
             <SidebarContent>
