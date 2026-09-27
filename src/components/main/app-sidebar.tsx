@@ -6,12 +6,14 @@ import { useAppSettings } from '@/hooks/use-app-settings'
 import { resolveImage } from '@/api/base'
 import { Sidebar, SidebarContent, SidebarFooter, SidebarHeader, SidebarRail } from '@/components/ui/sidebar'
 import {
+    BookOpen,
     Church,
     ClipboardList,
     Clapperboard,
     CreditCard,
     Flag,
     HandHeart,
+    HeartHandshake,
     LayoutDashboard,
     Settings,
     Users,
@@ -22,16 +24,18 @@ import {
 
 const NAV_ITEMS = [
     { title: 'Dashboard', url: '/', icon: <LayoutDashboard className="size-4" /> },
-    { title: 'User Management', url: '/user-management', icon: <UsersRound className="size-4" /> },
     { title: 'Churches', url: '/churches', icon: <Church className="size-4" /> },
-    { title: 'Daily Content', url: '/daily-content', icon: <ClipboardList className="size-4" /> },
-    { title: 'Prayer Management', url: '/prayer-management', icon: <HandHeart className="size-4" /> },
     { title: 'Sermons', url: '/sermons', icon: <Clapperboard className="size-4" /> },
-    { title: 'Community', url: '/community', icon: <Users className="size-4" /> },
-    { title: 'Payments', url: '/payments', icon: <WalletCards className="size-4" /> },
+    { title: 'Prayer Management', url: '/prayer-management', icon: <HandHeart className="size-4" /> },
+    { title: 'Community Prayers', url: '/prayers', icon: <HeartHandshake className="size-4" /> },
+    { title: 'Daily Content', url: '/daily-content', icon: <ClipboardList className="size-4" /> },
+    { title: 'Community Post', url: '/community', icon: <Users className="size-4" /> },
+    { title: 'Post Reports', url: '/reports', icon: <Flag className="size-4" /> },
+    { title: 'User Management', url: '/user-management', icon: <UsersRound className="size-4" /> },
     { title: 'Subscriptions', url: '/subscriptions', icon: <CreditCard className="size-4" /> },
+    { title: 'Payments', url: '/payments', icon: <WalletCards className="size-4" /> },
+    { title: 'Bible Versions', url: '/bible-versions', icon: <BookOpen className="size-4" /> },
     { title: 'Notifications', url: '/notifications', icon: <Bell className="size-4" /> },
-    { title: 'Reports', url: '/reports', icon: <Flag className="size-4" /> },
     { title: 'Settings', url: '/settings', icon: <Settings className="size-4" /> },
 ]
 

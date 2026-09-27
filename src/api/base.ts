@@ -83,10 +83,11 @@ export async function request<T>(path: string, init?: RequestInitWithAuth): Prom
     const url = `${baseURL}${apiPrefix}${path}`
 
     // Let the browser set the multipart boundary for FormData bodies;
-    // default to JSON otherwise.
+    // only set Content-Type: application/json when a non-FormData body is provided.
+    const hasBody = init?.body !== undefined && init?.body !== null
     const isFormData = typeof FormData !== 'undefined' && init?.body instanceof FormData
     const headers: Record<string, string> = {
-        ...(isFormData ? {} : { 'Content-Type': 'application/json' }),
+        ...(hasBody && !isFormData ? { 'Content-Type': 'application/json' } : {}),
         ...((init?.headers as Record<string, string>) || {}),
     }
 

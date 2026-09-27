@@ -17,12 +17,14 @@ import { Route as _mainSubscriptionsRouteImport } from './routes/__main/subscrip
 import { Route as _mainSettingsRouteImport } from './routes/__main/settings'
 import { Route as _mainSermonsRouteImport } from './routes/__main/sermons'
 import { Route as _mainReportsRouteImport } from './routes/__main/reports'
+import { Route as _mainPrayersRouteImport } from './routes/__main/prayers'
 import { Route as _mainPrayerManagementRouteImport } from './routes/__main/prayer-management'
 import { Route as _mainPaymentsRouteImport } from './routes/__main/payments'
 import { Route as _mainNotificationsRouteImport } from './routes/__main/notifications'
 import { Route as _mainDailyContentRouteImport } from './routes/__main/daily-content'
 import { Route as _mainCommunityRouteImport } from './routes/__main/community'
 import { Route as _mainChurchesRouteImport } from './routes/__main/churches'
+import { Route as _mainBibleVersionsRouteImport } from './routes/__main/bible-versions'
 import { Route as _authVerificationRouteImport } from './routes/__auth/verification'
 import { Route as _authSigninRouteImport } from './routes/__auth/signin'
 import { Route as _authResetPasswordRouteImport } from './routes/__auth/reset-password'
@@ -66,6 +68,11 @@ const _mainReportsRoute = _mainReportsRouteImport.update({
   path: '/reports',
   getParentRoute: () => _mainRouteRoute,
 } as any)
+const _mainPrayersRoute = _mainPrayersRouteImport.update({
+  id: '/prayers',
+  path: '/prayers',
+  getParentRoute: () => _mainRouteRoute,
+} as any)
 const _mainPrayerManagementRoute = _mainPrayerManagementRouteImport.update({
   id: '/prayer-management',
   path: '/prayer-management',
@@ -96,6 +103,11 @@ const _mainChurchesRoute = _mainChurchesRouteImport.update({
   path: '/churches',
   getParentRoute: () => _mainRouteRoute,
 } as any)
+const _mainBibleVersionsRoute = _mainBibleVersionsRouteImport.update({
+  id: '/bible-versions',
+  path: '/bible-versions',
+  getParentRoute: () => _mainRouteRoute,
+} as any)
 const _authVerificationRoute = _authVerificationRouteImport.update({
   id: '/verification',
   path: '/verification',
@@ -123,12 +135,14 @@ export interface FileRoutesByFullPath {
   '/reset-password': typeof _authResetPasswordRoute
   '/signin': typeof _authSigninRoute
   '/verification': typeof _authVerificationRoute
+  '/bible-versions': typeof _mainBibleVersionsRoute
   '/churches': typeof _mainChurchesRoute
   '/community': typeof _mainCommunityRoute
   '/daily-content': typeof _mainDailyContentRoute
   '/notifications': typeof _mainNotificationsRoute
   '/payments': typeof _mainPaymentsRoute
   '/prayer-management': typeof _mainPrayerManagementRoute
+  '/prayers': typeof _mainPrayersRoute
   '/reports': typeof _mainReportsRoute
   '/sermons': typeof _mainSermonsRoute
   '/settings': typeof _mainSettingsRoute
@@ -141,12 +155,14 @@ export interface FileRoutesByTo {
   '/reset-password': typeof _authResetPasswordRoute
   '/signin': typeof _authSigninRoute
   '/verification': typeof _authVerificationRoute
+  '/bible-versions': typeof _mainBibleVersionsRoute
   '/churches': typeof _mainChurchesRoute
   '/community': typeof _mainCommunityRoute
   '/daily-content': typeof _mainDailyContentRoute
   '/notifications': typeof _mainNotificationsRoute
   '/payments': typeof _mainPaymentsRoute
   '/prayer-management': typeof _mainPrayerManagementRoute
+  '/prayers': typeof _mainPrayersRoute
   '/reports': typeof _mainReportsRoute
   '/sermons': typeof _mainSermonsRoute
   '/settings': typeof _mainSettingsRoute
@@ -161,12 +177,14 @@ export interface FileRoutesById {
   '/__auth/reset-password': typeof _authResetPasswordRoute
   '/__auth/signin': typeof _authSigninRoute
   '/__auth/verification': typeof _authVerificationRoute
+  '/__main/bible-versions': typeof _mainBibleVersionsRoute
   '/__main/churches': typeof _mainChurchesRoute
   '/__main/community': typeof _mainCommunityRoute
   '/__main/daily-content': typeof _mainDailyContentRoute
   '/__main/notifications': typeof _mainNotificationsRoute
   '/__main/payments': typeof _mainPaymentsRoute
   '/__main/prayer-management': typeof _mainPrayerManagementRoute
+  '/__main/prayers': typeof _mainPrayersRoute
   '/__main/reports': typeof _mainReportsRoute
   '/__main/sermons': typeof _mainSermonsRoute
   '/__main/settings': typeof _mainSettingsRoute
@@ -182,12 +200,14 @@ export interface FileRouteTypes {
     | '/reset-password'
     | '/signin'
     | '/verification'
+    | '/bible-versions'
     | '/churches'
     | '/community'
     | '/daily-content'
     | '/notifications'
     | '/payments'
     | '/prayer-management'
+    | '/prayers'
     | '/reports'
     | '/sermons'
     | '/settings'
@@ -200,12 +220,14 @@ export interface FileRouteTypes {
     | '/reset-password'
     | '/signin'
     | '/verification'
+    | '/bible-versions'
     | '/churches'
     | '/community'
     | '/daily-content'
     | '/notifications'
     | '/payments'
     | '/prayer-management'
+    | '/prayers'
     | '/reports'
     | '/sermons'
     | '/settings'
@@ -219,12 +241,14 @@ export interface FileRouteTypes {
     | '/__auth/reset-password'
     | '/__auth/signin'
     | '/__auth/verification'
+    | '/__main/bible-versions'
     | '/__main/churches'
     | '/__main/community'
     | '/__main/daily-content'
     | '/__main/notifications'
     | '/__main/payments'
     | '/__main/prayer-management'
+    | '/__main/prayers'
     | '/__main/reports'
     | '/__main/sermons'
     | '/__main/settings'
@@ -296,6 +320,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof _mainReportsRouteImport
       parentRoute: typeof _mainRouteRoute
     }
+    '/__main/prayers': {
+      id: '/__main/prayers'
+      path: '/prayers'
+      fullPath: '/prayers'
+      preLoaderRoute: typeof _mainPrayersRouteImport
+      parentRoute: typeof _mainRouteRoute
+    }
     '/__main/prayer-management': {
       id: '/__main/prayer-management'
       path: '/prayer-management'
@@ -336,6 +367,13 @@ declare module '@tanstack/react-router' {
       path: '/churches'
       fullPath: '/churches'
       preLoaderRoute: typeof _mainChurchesRouteImport
+      parentRoute: typeof _mainRouteRoute
+    }
+    '/__main/bible-versions': {
+      id: '/__main/bible-versions'
+      path: '/bible-versions'
+      fullPath: '/bible-versions'
+      preLoaderRoute: typeof _mainBibleVersionsRouteImport
       parentRoute: typeof _mainRouteRoute
     }
     '/__auth/verification': {
@@ -388,12 +426,14 @@ const _authRouteRouteWithChildren = _authRouteRoute._addFileChildren(
 )
 
 interface _mainRouteRouteChildren {
+  _mainBibleVersionsRoute: typeof _mainBibleVersionsRoute
   _mainChurchesRoute: typeof _mainChurchesRoute
   _mainCommunityRoute: typeof _mainCommunityRoute
   _mainDailyContentRoute: typeof _mainDailyContentRoute
   _mainNotificationsRoute: typeof _mainNotificationsRoute
   _mainPaymentsRoute: typeof _mainPaymentsRoute
   _mainPrayerManagementRoute: typeof _mainPrayerManagementRoute
+  _mainPrayersRoute: typeof _mainPrayersRoute
   _mainReportsRoute: typeof _mainReportsRoute
   _mainSermonsRoute: typeof _mainSermonsRoute
   _mainSettingsRoute: typeof _mainSettingsRoute
@@ -403,12 +443,14 @@ interface _mainRouteRouteChildren {
 }
 
 const _mainRouteRouteChildren: _mainRouteRouteChildren = {
+  _mainBibleVersionsRoute: _mainBibleVersionsRoute,
   _mainChurchesRoute: _mainChurchesRoute,
   _mainCommunityRoute: _mainCommunityRoute,
   _mainDailyContentRoute: _mainDailyContentRoute,
   _mainNotificationsRoute: _mainNotificationsRoute,
   _mainPaymentsRoute: _mainPaymentsRoute,
   _mainPrayerManagementRoute: _mainPrayerManagementRoute,
+  _mainPrayersRoute: _mainPrayersRoute,
   _mainReportsRoute: _mainReportsRoute,
   _mainSermonsRoute: _mainSermonsRoute,
   _mainSettingsRoute: _mainSettingsRoute,
