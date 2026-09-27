@@ -12,7 +12,7 @@ function RouteComponent() {
             </div>
             <div className="w-full lg:w-1/2 flex flex-col items-center justify-center p-8 lg:p-12">
                 <div className="w-full max-w-105 flex flex-col items-center">
-                    <img src="/mercy-logo.svg" alt="Mercy Logo" className="h-15 w-auto mb-10" />
+                    <img src="/mercy-logo.png" alt="Mercy Logo" className="h-16 w-auto mb-8 object-contain" />
                     <Outlet />
                 </div>
             </div>

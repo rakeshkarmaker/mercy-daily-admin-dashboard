@@ -50,15 +50,15 @@ export function AppSidebar({ user, ...props }: React.ComponentProps<typeof Sideb
                 <div className="flex h-11 items-center px-5 group-data-[collapsible=icon]:px-0 group-data-[collapsible=icon]:w-11 group-data-[collapsible=icon]:justify-center group-data-[collapsible=icon]:mx-auto">
                     {/* Collapsed rail: uploaded logo, else the static mark. */}
                     <img
-                        src={logoUrl ? resolveImage(logoUrl) : '/favicon.svg'}
+                        src={logoUrl ? resolveImage(logoUrl) : '/mercy-mark.png'}
                         alt="Icon"
                         className="size-8 shrink-0 rounded object-contain hidden group-data-[collapsible=icon]:block"
                     />
                     {/* Expanded: uploaded logo, else the full wordmark. */}
                     <img
-                        src={logoUrl ? resolveImage(logoUrl) : '/mercy-logo.svg'}
+                        src={logoUrl ? resolveImage(logoUrl) : '/mercy-logo.png'}
                         alt="Logo"
-                        className="h-14 w-auto object-contain group-data-[collapsible=icon]:hidden"
+                        className="h-12 w-auto object-contain group-data-[collapsible=icon]:hidden"
                     />
                 </div>
             </SidebarHeader>

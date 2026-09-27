@@ -1,6 +1,8 @@
+import { useMemo } from 'react'
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card'
 import { createFileRoute } from '@tanstack/react-router'
-import { Eye } from 'lucide-react'
+import { useQuery } from '@tanstack/react-query'
+import { Eye, Loader2, AlertCircle } from 'lucide-react'
 import {
     Area,
     AreaChart,
@@ -15,6 +17,7 @@ import {
 import { motion } from 'motion/react'
 import type { Variants } from 'motion/react'
 import { motionTokens } from '@/lib/motionTokens'
+import { getOverview } from '@/api/overview'
 
 const containerVariants: Variants = {
     hidden: {},
@@ -32,36 +35,76 @@ export const Route = createFileRoute('/__main/')({
     component: RouteComponent,
 })
 
-// Mock chart data for Analytical Performance Map
-const PERFORMANCE_DATA = [
-    { name: 'Jan', userGrowth: 4500, communityActivity: 2000 },
-    { name: 'Feb', userGrowth: 4800, communityActivity: 2200 },
-    { name: 'Mar', userGrowth: 6000, communityActivity: 3500 },
-    { name: 'Apr', userGrowth: 7200, communityActivity: 4500 },
-    { name: 'May', userGrowth: 8000, communityActivity: 5000 },
-    { name: 'Jun', userGrowth: 8200, communityActivity: 5200 },
-    { name: 'Jul', userGrowth: 7500, communityActivity: 4800 },
-    { name: 'Aug', userGrowth: 7800, communityActivity: 4600 },
-    { name: 'Sep', userGrowth: 7200, communityActivity: 4200 },
-    { name: 'Oct', userGrowth: 6500, communityActivity: 4000 },
-    { name: 'Nov', userGrowth: 8500, communityActivity: 5500 },
-    { name: 'Dec', userGrowth: 10500, communityActivity: 7500 },
-]
-
-// Mock pie data
-const PIE_DATA = [
-    { name: 'Prayers', value: 45, color: 'var(--chart-1)' },
-    { name: 'Community', value: 30, color: 'var(--chart-2)' },
-    { name: 'Media/Views', value: 25, color: 'var(--chart-4)' },
-]
-
-const ACTIVITIES = [
-    { id: 1, user: 'Elena Rostova', email: 'Firoz1122@gmail.com', activity: 'Registered a new account', module: 'User Management', date: '12 May 2026', status: 'Active' },
-    { id: 2, user: 'Elena Rostova', email: 'Firoz1122@gmail.com', activity: 'Registered a new account', module: 'User Management', date: '12 May 2026', status: 'Delete' },
-    { id: 3, user: 'Elena Rostova', email: 'Firoz1122@gmail.com', activity: 'Registered a new account', module: 'User Management', date: '12 May 2026', status: 'Active' },
-]
-
 function RouteComponent() {
+    const { data: overview, isLoading, error, refetch } = useQuery({
+        queryKey: ['dashboard-overview'],
+        queryFn: getOverview,
+        staleTime: 30_000,
+    })
+
+    const currentUser = useMemo(() => {
+        try {
+            const raw = localStorage.getItem('auth_user')
+            return raw ? JSON.parse(raw) : null
+        } catch {
+            return null
+        }
+    }, [])
+
+    const adminName = currentUser?.name || 'Administrator'
+
+    const pieData = useMemo(() => {
+        if (!overview) return []
+        return [
+            { name: 'Prayers', value: overview.engagementDistribution.prayers, color: 'var(--chart-1)' },
+            { name: 'Community', value: overview.engagementDistribution.community, color: 'var(--chart-2)' },
+            { name: 'Media/Views', value: overview.engagementDistribution.mediaViews, color: 'var(--chart-4)' },
+        ]
+    }, [overview])
+
+    if (isLoading) {
+        return (
+            <div className="flex flex-col gap-6 w-full max-w-full pb-10">
+                <div className="bg-primary/90 rounded-2xl p-8 flex justify-between items-center h-48 animate-pulse">
+                    <div className="space-y-3">
+                        <div className="h-4 w-40 bg-white/20 rounded-full"></div>
+                        <div className="h-8 w-72 bg-white/30 rounded-lg"></div>
+                        <div className="h-4 w-96 bg-white/20 rounded"></div>
+                    </div>
+                    <div className="h-20 w-44 bg-white/10 rounded-xl"></div>
+                </div>
+                <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-6 gap-4">
+                    {Array.from({ length: 6 }).map((_, i) => (
+                        <div key={i} className="h-28 bg-muted/40 rounded-xl animate-pulse"></div>
+                    ))}
+                </div>
+                <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
+                    <div className="lg:col-span-2 h-80 bg-muted/40 rounded-xl animate-pulse"></div>
+                    <div className="h-80 bg-muted/40 rounded-xl animate-pulse"></div>
+                </div>
+            </div>
+        )
+    }
+
+    if (error || !overview) {
+        return (
+            <div className="flex flex-col items-center justify-center p-12 text-center border border-destructive/20 rounded-2xl bg-destructive/5 my-6">
+                <AlertCircle className="size-10 text-destructive mb-3" />
+                <h3 className="text-lg font-bold text-destructive">Failed to Load Dashboard Data</h3>
+                <p className="text-sm text-muted-foreground mt-1 max-w-md">
+                    Could not retrieve live metrics from the backend service. Ensure the backend server is running.
+                </p>
+                <button
+                    onClick={() => refetch()}
+                    className="mt-4 px-4 py-2 bg-primary text-primary-foreground text-sm font-semibold rounded-lg hover:bg-primary/90 transition-colors inline-flex items-center gap-2"
+                >
+                    <Loader2 className="size-4 animate-spin" />
+                    Retry Connection
+                </button>
+            </div>
+        )
+    }
+
     return (
         <div className="flex flex-col gap-6 w-full max-w-full overflow-hidden pb-10">
             {/* Hero Banner */}
@@ -71,7 +114,6 @@ function RouteComponent() {
                 animate={{ opacity: 1 }}
                 transition={{ duration: motionTokens.duration.fast }}
             >
-                {/* Decorative overlay pattern could go here */}
                 <div className="absolute inset-0 opacity-10 bg-[radial-gradient(ellipse_at_center,var(--tw-gradient-stops))] from-white to-transparent pointer-events-none" />
                 
                 <div className="flex flex-col gap-3 relative z-10">
@@ -79,20 +121,20 @@ function RouteComponent() {
                         DIVINE MANDATE & STEWARDSHIP
                     </div>
                     <h2 className="text-3xl font-bold text-white tracking-tight">
-                        Welcome back, Elizabeth Sterling 👋
+                        Welcome back, {adminName} 👋
                     </h2>
-                    <p className="text-white/80 text-sm max-w-2xl mt-1 font-medium">
-                        "But those who hope in the Lord will renew their strength. They will soar on wings like eagles; they will run and not grow weary, they will walk and not be faint."
-                        <br/><span className="text-white/60 font-semibold">— Isaiah 40:31</span>
+                    <p className="text-white/90 text-sm max-w-2xl mt-1 font-medium leading-relaxed">
+                        &quot;{overview.verseOfTheDay.verse}&quot;
+                        <br/><span className="text-white/70 font-semibold">— {overview.verseOfTheDay.reference}</span>
                     </p>
                 </div>
 
                 <div className="bg-white/10 border border-white/20 backdrop-blur-sm rounded-xl p-4 shrink-0 relative z-10 w-full md:w-auto min-w-50">
-                    <div className="text-white/70 text-[10px] font-bold uppercase tracking-wider mb-1">TODAY'S SYSTEM DATE</div>
-                    <div className="text-2xl font-bold text-white mb-2">July 06, 2026</div>
+                    <div className="text-white/70 text-[10px] font-bold uppercase tracking-wider mb-1">TODAY&apos;S SYSTEM DATE</div>
+                    <div className="text-2xl font-bold text-white mb-2">{overview.systemDate}</div>
                     <div className="flex items-center gap-2">
                         <div className="size-2 rounded-full bg-success shadow-[0_0_8px_var(--success)]"></div>
-                        <span className="text-success text-xs font-semibold">Server Synced</span>
+                        <span className="text-success text-xs font-semibold">Live Database Synced</span>
                     </div>
                 </div>
             </motion.div>
@@ -104,12 +146,12 @@ function RouteComponent() {
                 initial="hidden"
                 animate="visible"
             >
-                <StatCard title="TOTAL USERS" value="12,407" change="+12.4%" subtitle="Cumulative signups" />
-                <StatCard title="DAILY ACTIVE" value="3,802" change="+8.2%" subtitle="Active today" />
-                <StatCard title="PRAYER REQUESTS" value="1,804" change="+15.1%" subtitle="Intercession log" />
-                <StatCard title="COMMUNITY POSTS" value="5,603" change="+22.4%" subtitle="Social interactions" />
-                <StatCard title="UPCOMING EVENTS" value="3" change="+5.0%" subtitle="Active parishes" />
-                <StatCard title="AI QUESTIONS" value="902" change="+35.6%" subtitle="Theological queries" />
+                <StatCard title="TOTAL USERS" value={overview.stats.totalUsers.toLocaleString()} change={overview.stats.totalUsersChange} subtitle="Registered accounts" />
+                <StatCard title="DAILY ACTIVE" value={overview.stats.dailyActive.toLocaleString()} change={overview.stats.dailyActiveChange} subtitle="Active users" />
+                <StatCard title="PRAYER REQUESTS" value={overview.stats.prayerRequests.toLocaleString()} change={overview.stats.prayerRequestsChange} subtitle="Intercession log" />
+                <StatCard title="COMMUNITY POSTS" value={overview.stats.communityPosts.toLocaleString()} change={overview.stats.communityPostsChange} subtitle="Live publications" />
+                <StatCard title="UPCOMING EVENTS" value={overview.stats.upcomingEvents.toLocaleString()} change={overview.stats.upcomingEventsChange} subtitle="Active parishes" />
+                <StatCard title="AI QUESTIONS" value={overview.stats.aiQuestions.toLocaleString()} change={overview.stats.aiQuestionsChange} subtitle="Theological queries" />
             </motion.div>
 
             {/* Charts Section */}
@@ -126,7 +168,7 @@ function RouteComponent() {
                             <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
                                 <div>
                                     <CardTitle className="text-lg font-bold text-chart-1">Analytical Performance Map</CardTitle>
-                                    <CardDescription>Visualizing registered users & community activity metrics</CardDescription>
+                                    <CardDescription>Live database trajectory of registered users & community activity</CardDescription>
                                 </div>
                                 <div className="flex items-center gap-4 text-sm font-medium">
                                     <div className="flex items-center gap-2">
@@ -143,7 +185,7 @@ function RouteComponent() {
                         <CardContent className="p-6 pt-0 flex-1 flex flex-col">
                             <div className="h-62.5 w-full">
                                 <ResponsiveContainer width="100%" height="100%">
-                                    <AreaChart data={PERFORMANCE_DATA} margin={{ top: 20, right: 0, left: 0, bottom: 0 }}>
+                                    <AreaChart data={overview.performanceData} margin={{ top: 20, right: 0, left: 0, bottom: 0 }}>
                                         <defs>
                                             <linearGradient id="colorUser" x1="0" y1="0" x2="0" y2="1">
                                                 <stop offset="5%" stopColor="var(--chart-1)" stopOpacity={0.1}/>
@@ -172,16 +214,16 @@ function RouteComponent() {
                             {/* Stats Footer */}
                             <div className="flex items-center justify-between border-t border-border pt-4 mt-2">
                                 <div className="flex flex-col">
-                                    <span className="text-[10px] font-bold text-muted-foreground uppercase tracking-wider">Average Session</span>
-                                    <span className="text-base font-bold text-chart-1">14 min 32s</span>
+                                    <span className="text-[10px] font-bold text-muted-foreground uppercase tracking-wider">Total Registered</span>
+                                    <span className="text-base font-bold text-chart-1">{overview.stats.totalUsers} users</span>
                                 </div>
                                 <div className="flex flex-col">
-                                    <span className="text-[10px] font-bold text-muted-foreground uppercase tracking-wider">Response Rate</span>
-                                    <span className="text-base font-bold text-chart-1">98.4%</span>
+                                    <span className="text-[10px] font-bold text-muted-foreground uppercase tracking-wider">Active Rate</span>
+                                    <span className="text-base font-bold text-chart-1">{overview.engagementDistribution.totalRate}%</span>
                                 </div>
                                 <div className="flex flex-col">
-                                    <span className="text-[10px] font-bold text-muted-foreground uppercase tracking-wider">Server Latency</span>
-                                    <span className="text-base font-bold text-success">45ms</span>
+                                    <span className="text-[10px] font-bold text-muted-foreground uppercase tracking-wider">Database Status</span>
+                                    <span className="text-base font-bold text-success">Healthy / Online</span>
                                 </div>
                             </div>
                         </CardContent>
@@ -193,34 +235,34 @@ function RouteComponent() {
                     <Card className="border border-border/50 shadow-sm h-full flex flex-col">
                         <CardHeader className="pb-2">
                             <CardTitle className="text-lg font-bold text-chart-1">Engagement Distribution</CardTitle>
-                            <CardDescription>Where community interactions happen</CardDescription>
+                            <CardDescription>Live breakdown across active modules</CardDescription>
                         </CardHeader>
                         <CardContent className="flex flex-col items-center justify-center flex-1 p-6 pt-0">
                             <div className="h-50 w-full relative flex items-center justify-center mt-4">
                                 <ResponsiveContainer width="100%" height="100%">
                                     <PieChart>
                                         <Pie
-                                            data={PIE_DATA}
+                                            data={pieData}
                                             innerRadius={65}
                                             outerRadius={85}
                                             paddingAngle={2}
                                             dataKey="value"
                                             stroke="none"
                                         >
-                                            {PIE_DATA.map((entry, index) => (
+                                            {pieData.map((entry, index) => (
                                                 <Cell key={`cell-${index}`} fill={entry.color} />
                                             ))}
                                         </Pie>
                                     </PieChart>
                                 </ResponsiveContainer>
                                 <div className="absolute inset-0 flex flex-col items-center justify-center pointer-events-none">
-                                    <span className="text-3xl font-extrabold text-chart-1">74%</span>
-                                    <span className="text-[10px] font-bold text-muted-foreground uppercase tracking-wider">Total Rate</span>
+                                    <span className="text-3xl font-extrabold text-chart-1">{overview.engagementDistribution.totalRate}%</span>
+                                    <span className="text-[10px] font-bold text-muted-foreground uppercase tracking-wider">Active Rate</span>
                                 </div>
                             </div>
                             
                             <div className="flex flex-col w-full gap-3 mt-6">
-                                {PIE_DATA.map((item) => (
+                                {pieData.map((item) => (
                                     <div key={item.name} className="flex items-center justify-between">
                                         <div className="flex items-center gap-2">
                                             <div className="w-3 h-3 rounded bg-muted" style={{ backgroundColor: item.color }}></div>
@@ -230,10 +272,6 @@ function RouteComponent() {
                                     </div>
                                 ))}
                             </div>
-
-                            <button className="w-full mt-8 py-3 rounded-lg bg-muted border border-border text-sm font-bold text-chart-1 hover:bg-accent transition-colors">
-                                Launch Deep Analytics Interface
-                            </button>
                         </CardContent>
                     </Card>
                 </motion.div>
@@ -244,7 +282,7 @@ function RouteComponent() {
                 <Card className="border border-border/50 shadow-sm overflow-hidden">
                     <CardHeader className="pb-4">
                         <CardTitle className="text-lg font-bold text-chart-1">Recent Activities Logs</CardTitle>
-                        <CardDescription>Audit trail of global application interactions</CardDescription>
+                        <CardDescription>Real database activity feed from verified users</CardDescription>
                     </CardHeader>
                     <div className="overflow-x-auto">
                         <table className="w-full text-sm text-left">
@@ -259,34 +297,42 @@ function RouteComponent() {
                                 </tr>
                             </thead>
                             <tbody className="divide-y divide-border/50 bg-card">
-                                {ACTIVITIES.map((act) => (
-                                    <tr key={act.id} className="hover:bg-muted/30 transition-colors">
-                                        <td className="px-6 py-4">
-                                            <div className="flex items-center gap-3">
-                                                <div className="size-9 rounded-full bg-blue-100 flex items-center justify-center shrink-0 overflow-hidden">
-                                                    <img src="/placeholder.jpg" alt={act.user} className="size-full object-cover" />
-                                                </div>
-                                                <div className="flex flex-col">
-                                                    <span className="font-bold text-chart-1">{act.user}</span>
-                                                    <span className="text-xs text-muted-foreground">{act.email}</span>
-                                                </div>
-                                            </div>
-                                        </td>
-                                        <td className="px-6 py-4 font-medium text-foreground">{act.activity}</td>
-                                        <td className="px-6 py-4 text-muted-foreground font-medium">{act.module}</td>
-                                        <td className="px-6 py-4 font-semibold text-chart-1">{act.date}</td>
-                                        <td className="px-6 py-4">
-                                            <span className={`font-bold ${act.status === 'Active' ? 'text-success' : 'text-destructive'}`}>
-                                                {act.status}
-                                            </span>
-                                        </td>
-                                        <td className="px-6 py-4 text-center">
-                                            <button className="p-2 rounded-full bg-primary/10 text-primary hover:bg-primary/20 transition-colors mx-auto block">
-                                                <Eye className="size-4" />
-                                            </button>
+                                {overview.recentActivities.length === 0 ? (
+                                    <tr>
+                                        <td colSpan={6} className="px-6 py-8 text-center text-muted-foreground">
+                                            No recent activity logs recorded in the database.
                                         </td>
                                     </tr>
-                                ))}
+                                ) : (
+                                    overview.recentActivities.map((act) => (
+                                        <tr key={act.id} className="hover:bg-muted/30 transition-colors">
+                                            <td className="px-6 py-4">
+                                                <div className="flex items-center gap-3">
+                                                    <div className="size-9 rounded-full bg-primary/10 text-primary font-bold flex items-center justify-center shrink-0 uppercase text-xs">
+                                                        {act.user.slice(0, 2)}
+                                                    </div>
+                                                    <div className="flex flex-col">
+                                                        <span className="font-bold text-chart-1">{act.user}</span>
+                                                        <span className="text-xs text-muted-foreground">{act.email}</span>
+                                                    </div>
+                                                </div>
+                                            </td>
+                                            <td className="px-6 py-4 font-medium text-foreground">{act.activity}</td>
+                                            <td className="px-6 py-4 text-muted-foreground font-medium">{act.module}</td>
+                                            <td className="px-6 py-4 font-semibold text-chart-1">{act.date}</td>
+                                            <td className="px-6 py-4">
+                                                <span className={`font-bold ${act.status === 'Active' ? 'text-success' : 'text-destructive'}`}>
+                                                    {act.status}
+                                                </span>
+                                            </td>
+                                            <td className="px-6 py-4 text-center">
+                                                <button className="p-2 rounded-full bg-primary/10 text-primary hover:bg-primary/20 transition-colors mx-auto block" title="Inspect">
+                                                    <Eye className="size-4" />
+                                                </button>
+                                            </td>
+                                        </tr>
+                                    ))
+                                )}
                             </tbody>
                         </table>
                     </div>
