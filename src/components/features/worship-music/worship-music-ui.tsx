@@ -328,7 +328,7 @@ export function WorshipMusicUI({
                                 <span className="font-semibold text-foreground text-sm truncate flex items-center gap-1.5">
                                     {row.title}
                                     {row.isFeatured && (
-                                        <Badge className="bg-amber-500/15 text-amber-700 dark:text-amber-400 border-amber-500/30 text-[10px] h-4 px-1.5">
+                                        <Badge className="bg-warning/15 text-warning border-warning/30 text-[10px] h-4 px-1.5">
                                             <Sparkles className="size-2.5 mr-0.5" /> Top
                                         </Badge>
                                     )}
@@ -394,14 +394,14 @@ export function WorshipMusicUI({
                 render: (row) => {
                     if (row.status === 'Published') {
                         return (
-                            <Badge className="bg-emerald-500/15 text-emerald-700 dark:text-emerald-400 border-emerald-500/20 gap-1">
+                            <Badge className="bg-success/10 text-success border-success/20 gap-1">
                                 <CheckCircle2 className="size-3" /> Published
                             </Badge>
                         )
                     }
                     if (row.status === 'Scheduled') {
                         return (
-                            <Badge variant="outline" className="text-blue-600 dark:text-blue-400 border-blue-500/30 bg-blue-500/10 gap-1">
+                            <Badge variant="outline" className="text-info border-info/30 bg-info/10 gap-1">
                                 <Calendar className="size-3" /> Scheduled
                             </Badge>
                         )
@@ -423,7 +423,7 @@ export function WorshipMusicUI({
                             onClick={() => handlePlaySong(row)}
                             className={
                                 currentPlaying?.id === row.id && isPlaying
-                                    ? 'text-pink-600 bg-pink-500/10'
+                                    ? 'text-primary bg-primary/10'
                                     : 'text-primary hover:bg-primary/10'
                             }
                         >
@@ -432,7 +432,7 @@ export function WorshipMusicUI({
                         <ActionButton
                             label={row.isFeatured ? 'Remove from Top Worship' : 'Pin to Top Worship Songs'}
                             onClick={() => toggleSongFeatured(row)}
-                            className={row.isFeatured ? 'text-amber-500 hover:bg-amber-500/10' : 'text-muted-foreground hover:bg-muted'}
+                            className={row.isFeatured ? 'text-warning hover:bg-warning/10' : 'text-muted-foreground hover:bg-muted'}
                         >
                             <Sparkles />
                         </ActionButton>
@@ -461,8 +461,8 @@ export function WorshipMusicUI({
                 description="Manage praise and worship audio tracks, featured playlists, and artist profiles featured on the mobile app."
             >
                 <div className="flex items-center gap-2">
-                    <Button onClick={openCreateSong} className="gap-2 bg-[#53624D] hover:bg-[#43503e] text-white">
-                        <Plus className="size-4" /> Add Track
+                    <Button onClick={openCreateSong} className="gap-2 bg-primary hover:bg-primary/90 text-primary-foreground cursor-pointer shadow-sm">
+                        <Plus className="size-4" /> Add Music
                     </Button>
                 </div>
             </PageHeader>
@@ -508,6 +508,13 @@ export function WorshipMusicUI({
                             placeholder="Search title, artist, verse..."
                             className="w-full sm:w-64"
                         />
+                        <Button
+                            onClick={openCreateSong}
+                            size="sm"
+                            className="gap-1.5 bg-primary hover:bg-primary/90 text-primary-foreground cursor-pointer shrink-0"
+                        >
+                            <Plus className="size-4" /> Add Music
+                        </Button>
                     </div>
                 )}
             </div>
@@ -577,7 +584,7 @@ export function WorshipMusicUI({
                                         </span>
                                     </div>
                                     {pl.isFeatured && (
-                                        <Badge className="absolute top-2.5 right-2.5 bg-amber-500 text-white font-semibold text-[10px] h-5 shadow">
+                                        <Badge className="absolute top-2.5 right-2.5 bg-warning text-warning-foreground font-semibold text-[10px] h-5 shadow">
                                             Featured
                                         </Badge>
                                     )}
@@ -623,7 +630,7 @@ export function WorshipMusicUI({
                     {/* Live Mobile Preview */}
                     <div className="space-y-3">
                         <h3 className="font-semibold text-foreground text-sm flex items-center gap-1.5">
-                            <Sparkles className="size-4 text-amber-500" /> Mobile App Live Banner Preview
+                            <Sparkles className="size-4 text-warning" /> Mobile App Live Banner Preview
                         </h3>
                         <div className="rounded-3xl border-2 border-border p-4 bg-muted/20 flex flex-col items-center">
                             <div className="w-full max-w-sm rounded-2xl overflow-hidden shadow-xl border border-border/80 relative aspect-16/10 group">
@@ -641,9 +648,9 @@ export function WorshipMusicUI({
                                     </p>
                                     <Button
                                         size="sm"
-                                        className="w-fit bg-[#53624D] hover:bg-[#43503e] text-white rounded-full text-xs px-4 h-8 gap-1.5 shadow"
+                                        className="w-fit bg-primary hover:bg-primary/90 text-primary-foreground rounded-full text-xs px-4 h-8 gap-1.5 shadow"
                                     >
-                                        <Play className="size-3 fill-white" /> {bannerEditing.buttonText}
+                                        <Play className="size-3 fill-primary-foreground" /> {bannerEditing.buttonText}
                                     </Button>
                                 </div>
                             </div>
@@ -710,7 +717,7 @@ export function WorshipMusicUI({
                         </div>
                         <Button
                             onClick={() => onSaveBanner(bannerEditing)}
-                            className="w-full bg-[#53624D] hover:bg-[#43503e] text-white"
+                            className="w-full bg-primary hover:bg-primary/90 text-primary-foreground"
                         >
                             Save Banner Changes
                         </Button>
@@ -747,7 +754,7 @@ export function WorshipMusicUI({
             <Dialog open={songFormOpen} onOpenChange={setSongFormOpen}>
                 <DialogContent className="sm:max-w-2xl max-h-[90vh] overflow-y-auto">
                     <DialogHeader>
-                        <DialogTitle>{editingSong ? 'Edit Worship Track' : 'Create Worship Track'}</DialogTitle>
+                        <DialogTitle>{editingSong ? 'Edit Worship Music' : 'Add New Worship Music'}</DialogTitle>
                         <DialogDescription>
                             Configure audio metadata, scripture references, cover art, and scheduling for the app.
                         </DialogDescription>
@@ -933,9 +940,9 @@ export function WorshipMusicUI({
                         <Button
                             onClick={submitSongForm}
                             disabled={!songForm.title.trim() || !songForm.artist.trim()}
-                            className="bg-[#53624D] hover:bg-[#43503e] text-white"
+                            className="bg-primary hover:bg-primary/90 text-primary-foreground"
                         >
-                            {editingSong ? 'Save Changes' : 'Publish Page'}
+                            {editingSong ? 'Save Changes' : 'Add Music Track'}
                         </Button>
                     </DialogFooter>
                 </DialogContent>
@@ -1005,7 +1012,7 @@ export function WorshipMusicUI({
                                 setPlaylistFormOpen(false)
                             }}
                             disabled={!playlistForm.title.trim()}
-                            className="bg-[#53624D] hover:bg-[#43503e] text-white"
+                            className="bg-primary hover:bg-primary/90 text-primary-foreground"
                         >
                             Save Playlist
                         </Button>
@@ -1037,7 +1044,7 @@ export function WorshipMusicUI({
 
             {/* Floating Audio Player (Matches the bottom player of Image 3!) */}
             {currentPlaying && (
-                <div className="fixed bottom-4 left-1/2 -translate-x-1/2 z-50 w-[95%] max-w-2xl bg-[#53624D] text-white rounded-2xl shadow-2xl p-3 flex items-center justify-between gap-4 border border-white/10 animate-in fade-in slide-in-from-bottom-4 duration-300">
+                <div className="fixed bottom-4 left-1/2 -translate-x-1/2 z-50 w-[95%] max-w-2xl bg-primary text-primary-foreground rounded-2xl shadow-2xl p-3 flex items-center justify-between gap-4 border border-primary-foreground/10 animate-in fade-in slide-in-from-bottom-4 duration-300">
                     <audio
                         ref={audioRef}
                         src={currentPlaying.audioUrl}
@@ -1087,13 +1094,13 @@ export function WorshipMusicUI({
                                     setIsPlaying(true)
                                 }
                             }}
-                            className="size-9 rounded-full bg-white text-[#53624D] flex items-center justify-center hover:scale-105 transition-transform cursor-pointer shadow"
+                            className="size-9 rounded-full bg-primary-foreground text-primary flex items-center justify-center hover:scale-105 transition-transform cursor-pointer shadow"
                             title={isPlaying ? 'Pause' : 'Play'}
                         >
                             {isPlaying ? (
-                                <Pause className="size-4 fill-[#53624D]" />
+                                <Pause className="size-4 fill-primary" />
                             ) : (
-                                <Play className="size-4 fill-[#53624D] ml-0.5" />
+                                <Play className="size-4 fill-primary ml-0.5" />
                             )}
                         </button>
 

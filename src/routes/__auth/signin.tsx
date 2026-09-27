@@ -2,7 +2,8 @@ import { request } from '@/api/base'
 import { useAppForm } from '@/components/shared/forms/form-context'
 import { useMutation } from '@tanstack/react-query'
 import { createFileRoute, Link, useNavigate } from '@tanstack/react-router'
-import { EyeOff } from 'lucide-react'
+import { Eye, EyeOff } from 'lucide-react'
+import { useState } from 'react'
 import { toast } from 'sonner'
 import { z } from 'zod'
 
@@ -27,6 +28,7 @@ export const Route = createFileRoute('/__auth/signin')({
 
 function RouteComponent() {
     const navigate = useNavigate()
+    const [showPassword, setShowPassword] = useState(false)
 
     const signinSchema = z.object({
         email: z.email('Enter your email address'),
@@ -102,11 +104,16 @@ function RouteComponent() {
                 <form.AppField name="password">
                     {(field) => (
                         <field.FormInput
-                            type="password"
+                            type={showPassword ? 'text' : 'password'}
                             label="Password"
                             iconRight={
-                                <button type="button" className="focus:outline-none text-muted-foreground hover:text-foreground">
-                                    <EyeOff className="w-4 h-4" />
+                                <button
+                                    type="button"
+                                    onClick={() => setShowPassword((prev) => !prev)}
+                                    className="focus:outline-none text-muted-foreground hover:text-foreground cursor-pointer transition-colors p-1"
+                                    aria-label={showPassword ? 'Hide password' : 'Show password'}
+                                >
+                                    {showPassword ? <Eye className="w-4 h-4" /> : <EyeOff className="w-4 h-4" />}
                                 </button>
                             }
                             placeholder="Type Your password"
@@ -133,6 +140,13 @@ function RouteComponent() {
                         className="w-full h-12 text-base font-medium rounded-full bg-auth-button hover:bg-auth-button/90 text-auth-button-foreground shadow-md border-none"
                     />
                 </form.AppForm>
+
+                <div className="text-center text-xs text-muted-foreground pt-1">
+                    Don&apos;t have an account?{' '}
+                    <Link to="/signup" className="font-semibold text-foreground hover:underline">
+                        Sign up
+                    </Link>
+                </div>
             </form>
         </div>
     )

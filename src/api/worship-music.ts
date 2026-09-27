@@ -1,52 +1,15 @@
-export type WorshipSong = {
-    id: string
-    title: string
-    artist: string
-    category: string
-    duration: string
-    audioUrl?: string
-    coverUrl?: string
-    bibleVerse?: string
-    bibleReference?: string
-    playlistId?: string
-    playlistTitle?: string
-    status: 'Published' | 'Scheduled' | 'Draft'
-    scheduledDate?: string
-    isFeatured: boolean
-    playsCount: number
-    language?: string
-    description?: string
-    createdAt: string
-    updatedAt: string
-}
+import type {
+    WorshipArtist,
+    WorshipHeroBanner,
+    WorshipPlaylist,
+    WorshipSong,
+} from '@/types/worship-music'
 
-export type WorshipPlaylist = {
-    id: string
-    title: string
-    description: string
-    coverUrl: string
-    songCount: number
-    isFeatured: boolean
-    category: string
-    createdAt: string
-}
-
-export type WorshipArtist = {
-    id: string
-    name: string
-    imageUrl: string
-    tracksCount: number
-    bio?: string
-}
-
-export type WorshipHeroBanner = {
-    id: string
-    title: string
-    subtitle: string
-    coverUrl: string
-    buttonText: string
-    linkedPlaylistId?: string
-    isActive: boolean
+export type {
+    WorshipArtist,
+    WorshipHeroBanner,
+    WorshipPlaylist,
+    WorshipSong,
 }
 
 // Seed data based directly on the actual Mercy Daily mobile app Worship Music screen
@@ -354,4 +317,48 @@ export function saveStoredArtists(artists: WorshipArtist[]) {
     if (typeof window !== 'undefined') {
         localStorage.setItem(STORAGE_KEY_ARTISTS, JSON.stringify(artists))
     }
+}
+
+// Async API Object complying with CRM Architecture
+export const worshipMusicApi = {
+    listSongs: async () => {
+        return getStoredSongs()
+    },
+    saveSong: async (song: WorshipSong) => {
+        const all = getStoredSongs()
+        const exists = all.some((s) => s.id === song.id)
+        const updated = exists ? all.map((s) => (s.id === song.id ? song : s)) : [song, ...all]
+        saveStoredSongs(updated)
+        return song
+    },
+    deleteSong: async (id: string) => {
+        const all = getStoredSongs()
+        const updated = all.filter((s) => s.id !== id)
+        saveStoredSongs(updated)
+    },
+    listPlaylists: async () => {
+        return getStoredPlaylists()
+    },
+    savePlaylist: async (playlist: WorshipPlaylist) => {
+        const all = getStoredPlaylists()
+        const exists = all.some((p) => p.id === playlist.id)
+        const updated = exists ? all.map((p) => (p.id === playlist.id ? playlist : p)) : [playlist, ...all]
+        saveStoredPlaylists(updated)
+        return playlist
+    },
+    deletePlaylist: async (id: string) => {
+        const all = getStoredPlaylists()
+        const updated = all.filter((p) => p.id !== id)
+        saveStoredPlaylists(updated)
+    },
+    getBanner: async () => {
+        return getStoredBanner()
+    },
+    saveBanner: async (banner: WorshipHeroBanner) => {
+        saveStoredBanner(banner)
+        return banner
+    },
+    listArtists: async () => {
+        return getStoredArtists()
+    },
 }

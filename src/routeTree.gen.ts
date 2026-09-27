@@ -27,6 +27,7 @@ import { Route as _mainCommunityRouteImport } from './routes/__main/community'
 import { Route as _mainChurchesRouteImport } from './routes/__main/churches'
 import { Route as _mainBibleVersionsRouteImport } from './routes/__main/bible-versions'
 import { Route as _authVerificationRouteImport } from './routes/__auth/verification'
+import { Route as _authSignupRouteImport } from './routes/__auth/signup'
 import { Route as _authSigninRouteImport } from './routes/__auth/signin'
 import { Route as _authResetPasswordRouteImport } from './routes/__auth/reset-password'
 import { Route as _authForgotPasswordRouteImport } from './routes/__auth/forgot-password'
@@ -119,6 +120,11 @@ const _authVerificationRoute = _authVerificationRouteImport.update({
   path: '/verification',
   getParentRoute: () => _authRouteRoute,
 } as any)
+const _authSignupRoute = _authSignupRouteImport.update({
+  id: '/signup',
+  path: '/signup',
+  getParentRoute: () => _authRouteRoute,
+} as any)
 const _authSigninRoute = _authSigninRouteImport.update({
   id: '/signin',
   path: '/signin',
@@ -140,6 +146,7 @@ export interface FileRoutesByFullPath {
   '/forgot-password': typeof _authForgotPasswordRoute
   '/reset-password': typeof _authResetPasswordRoute
   '/signin': typeof _authSigninRoute
+  '/signup': typeof _authSignupRoute
   '/verification': typeof _authVerificationRoute
   '/bible-versions': typeof _mainBibleVersionsRoute
   '/churches': typeof _mainChurchesRoute
@@ -161,6 +168,7 @@ export interface FileRoutesByTo {
   '/forgot-password': typeof _authForgotPasswordRoute
   '/reset-password': typeof _authResetPasswordRoute
   '/signin': typeof _authSigninRoute
+  '/signup': typeof _authSignupRoute
   '/verification': typeof _authVerificationRoute
   '/bible-versions': typeof _mainBibleVersionsRoute
   '/churches': typeof _mainChurchesRoute
@@ -184,6 +192,7 @@ export interface FileRoutesById {
   '/__auth/forgot-password': typeof _authForgotPasswordRoute
   '/__auth/reset-password': typeof _authResetPasswordRoute
   '/__auth/signin': typeof _authSigninRoute
+  '/__auth/signup': typeof _authSignupRoute
   '/__auth/verification': typeof _authVerificationRoute
   '/__main/bible-versions': typeof _mainBibleVersionsRoute
   '/__main/churches': typeof _mainChurchesRoute
@@ -208,6 +217,7 @@ export interface FileRouteTypes {
     | '/forgot-password'
     | '/reset-password'
     | '/signin'
+    | '/signup'
     | '/verification'
     | '/bible-versions'
     | '/churches'
@@ -229,6 +239,7 @@ export interface FileRouteTypes {
     | '/forgot-password'
     | '/reset-password'
     | '/signin'
+    | '/signup'
     | '/verification'
     | '/bible-versions'
     | '/churches'
@@ -251,6 +262,7 @@ export interface FileRouteTypes {
     | '/__auth/forgot-password'
     | '/__auth/reset-password'
     | '/__auth/signin'
+    | '/__auth/signup'
     | '/__auth/verification'
     | '/__main/bible-versions'
     | '/__main/churches'
@@ -402,6 +414,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof _authVerificationRouteImport
       parentRoute: typeof _authRouteRoute
     }
+    '/__auth/signup': {
+      id: '/__auth/signup'
+      path: '/signup'
+      fullPath: '/signup'
+      preLoaderRoute: typeof _authSignupRouteImport
+      parentRoute: typeof _authRouteRoute
+    }
     '/__auth/signin': {
       id: '/__auth/signin'
       path: '/signin'
@@ -430,6 +449,7 @@ interface _authRouteRouteChildren {
   _authForgotPasswordRoute: typeof _authForgotPasswordRoute
   _authResetPasswordRoute: typeof _authResetPasswordRoute
   _authSigninRoute: typeof _authSigninRoute
+  _authSignupRoute: typeof _authSignupRoute
   _authVerificationRoute: typeof _authVerificationRoute
 }
 
@@ -437,6 +457,7 @@ const _authRouteRouteChildren: _authRouteRouteChildren = {
   _authForgotPasswordRoute: _authForgotPasswordRoute,
   _authResetPasswordRoute: _authResetPasswordRoute,
   _authSigninRoute: _authSigninRoute,
+  _authSignupRoute: _authSignupRoute,
   _authVerificationRoute: _authVerificationRoute,
 }
 

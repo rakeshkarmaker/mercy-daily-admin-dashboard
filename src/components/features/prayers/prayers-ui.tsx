@@ -261,13 +261,13 @@ export function PrayersUI({
                     }
                     if (row.isAnswered) {
                         return (
-                            <Badge className="bg-emerald-500/15 text-emerald-700 dark:text-emerald-400 border-emerald-500/20 gap-1 hover:bg-emerald-500/20">
+                            <Badge className="bg-success/10 text-success border-success/20 gap-1 hover:bg-success/20">
                                 <CheckCircle2 className="size-3" /> Answered
                             </Badge>
                         )
                     }
                     return (
-                        <Badge variant="outline" className="text-amber-600 dark:text-amber-400 border-amber-500/30 bg-amber-500/10 gap-1">
+                        <Badge variant="outline" className="text-warning border-warning/30 bg-warning/10 gap-1">
                             <Sparkles className="size-3" /> Needs Prayer
                         </Badge>
                     )
@@ -278,7 +278,7 @@ export function PrayersUI({
                 header: 'PRAYED',
                 render: (row) => (
                     <div className="flex items-center gap-1.5 text-xs font-semibold text-foreground">
-                        <HandHeart className="size-3.5 text-pink-500 shrink-0" />
+                        <HandHeart className="size-3.5 text-primary shrink-0" />
                         <span>{row.prayCount}</span>
                     </div>
                 ),
@@ -310,14 +310,14 @@ export function PrayersUI({
                         <ActionButton
                             label={row.isAnswered ? 'Mark unanswered' : 'Mark answered'}
                             onClick={() => toggleAnswered(row)}
-                            className={row.isAnswered ? 'text-amber-600 hover:bg-amber-500/10' : 'text-emerald-600 hover:bg-emerald-500/10'}
+                            className={row.isAnswered ? 'text-warning hover:bg-warning/10' : 'text-success hover:bg-success/10'}
                         >
                             <CheckCircle2 />
                         </ActionButton>
                         <ActionButton
                             label="Pray (+1)"
                             onClick={() => onPrayForPrayer(row.id)}
-                            className="text-pink-600 hover:bg-pink-500/10"
+                            className="text-primary hover:bg-primary/10"
                         >
                             <HandHeart />
                         </ActionButton>
@@ -325,7 +325,7 @@ export function PrayersUI({
                             <ActionButton
                                 label="Restore prayer"
                                 onClick={() => restorePrayer(row)}
-                                className="text-blue-600 hover:bg-blue-500/10"
+                                className="text-info hover:bg-info/10"
                             >
                                 <RotateCcw />
                             </ActionButton>
@@ -603,11 +603,11 @@ function PrayerViewDialog({
                     <div className="flex items-center justify-between gap-2 pr-6">
                         <DialogTitle className="text-lg font-semibold">Prayer Request Details</DialogTitle>
                         {prayer.isAnswered ? (
-                            <Badge className="bg-emerald-500/15 text-emerald-700 dark:text-emerald-400 border-emerald-500/20 gap-1">
+                            <Badge className="bg-success/10 text-success border-success/20 gap-1">
                                 <CheckCircle2 className="size-3" /> Answered
                             </Badge>
                         ) : (
-                            <Badge variant="outline" className="text-amber-600 dark:text-amber-400 border-amber-500/30 bg-amber-500/10 gap-1">
+                            <Badge variant="outline" className="text-warning border-warning/30 bg-warning/10 gap-1">
                                 <Sparkles className="size-3" /> Needs Prayer
                             </Badge>
                         )}
@@ -660,7 +660,7 @@ function PrayerViewDialog({
                         <div className="border rounded-xl p-3 bg-card flex items-center justify-between">
                             <span className="text-xs text-muted-foreground">Prayed Count:</span>
                             <span className="text-sm font-bold text-foreground flex items-center gap-1">
-                                <HandHeart className="size-3.5 text-pink-500" />
+                                <HandHeart className="size-3.5 text-primary" />
                                 {prayer.prayCount}
                             </span>
                         </div>
@@ -677,12 +677,12 @@ function PrayerViewDialog({
                     <Button
                         variant="outline"
                         onClick={() => onToggleAnswered(prayer)}
-                        className="gap-1.5 text-emerald-600 hover:text-emerald-700"
+                        className="gap-1.5 text-success hover:bg-success/10"
                     >
                         <CheckCircle2 className="size-4" />
                         {prayer.isAnswered ? 'Mark Unanswered' : 'Mark Answered'}
                     </Button>
-                    <Button onClick={() => onPray(prayer.id)} className="gap-1.5 bg-pink-600 hover:bg-pink-700 text-white">
+                    <Button onClick={() => onPray(prayer.id)} className="gap-1.5 bg-primary hover:bg-primary/90 text-primary-foreground">
                         <HandHeart className="size-4" /> Pray (+1)
                     </Button>
                 </DialogFooter>
