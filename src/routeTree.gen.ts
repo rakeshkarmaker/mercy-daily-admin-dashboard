@@ -12,6 +12,7 @@ import { Route as rootRouteImport } from './routes/__root'
 import { Route as _mainRouteRouteImport } from './routes/__main/route'
 import { Route as _authRouteRouteImport } from './routes/__auth/route'
 import { Route as _mainIndexRouteImport } from './routes/__main/index'
+import { Route as _mainWorshipMusicRouteImport } from './routes/__main/worship-music'
 import { Route as _mainUserManagementRouteImport } from './routes/__main/user-management'
 import { Route as _mainSubscriptionsRouteImport } from './routes/__main/subscriptions'
 import { Route as _mainSettingsRouteImport } from './routes/__main/settings'
@@ -41,6 +42,11 @@ const _authRouteRoute = _authRouteRouteImport.update({
 const _mainIndexRoute = _mainIndexRouteImport.update({
   id: '/',
   path: '/',
+  getParentRoute: () => _mainRouteRoute,
+} as any)
+const _mainWorshipMusicRoute = _mainWorshipMusicRouteImport.update({
+  id: '/worship-music',
+  path: '/worship-music',
   getParentRoute: () => _mainRouteRoute,
 } as any)
 const _mainUserManagementRoute = _mainUserManagementRouteImport.update({
@@ -148,6 +154,7 @@ export interface FileRoutesByFullPath {
   '/settings': typeof _mainSettingsRoute
   '/subscriptions': typeof _mainSubscriptionsRoute
   '/user-management': typeof _mainUserManagementRoute
+  '/worship-music': typeof _mainWorshipMusicRoute
 }
 export interface FileRoutesByTo {
   '/': typeof _mainIndexRoute
@@ -168,6 +175,7 @@ export interface FileRoutesByTo {
   '/settings': typeof _mainSettingsRoute
   '/subscriptions': typeof _mainSubscriptionsRoute
   '/user-management': typeof _mainUserManagementRoute
+  '/worship-music': typeof _mainWorshipMusicRoute
 }
 export interface FileRoutesById {
   __root__: typeof rootRouteImport
@@ -190,6 +198,7 @@ export interface FileRoutesById {
   '/__main/settings': typeof _mainSettingsRoute
   '/__main/subscriptions': typeof _mainSubscriptionsRoute
   '/__main/user-management': typeof _mainUserManagementRoute
+  '/__main/worship-music': typeof _mainWorshipMusicRoute
   '/__main/': typeof _mainIndexRoute
 }
 export interface FileRouteTypes {
@@ -213,6 +222,7 @@ export interface FileRouteTypes {
     | '/settings'
     | '/subscriptions'
     | '/user-management'
+    | '/worship-music'
   fileRoutesByTo: FileRoutesByTo
   to:
     | '/'
@@ -233,6 +243,7 @@ export interface FileRouteTypes {
     | '/settings'
     | '/subscriptions'
     | '/user-management'
+    | '/worship-music'
   id:
     | '__root__'
     | '/__auth'
@@ -254,6 +265,7 @@ export interface FileRouteTypes {
     | '/__main/settings'
     | '/__main/subscriptions'
     | '/__main/user-management'
+    | '/__main/worship-music'
     | '/__main/'
   fileRoutesById: FileRoutesById
 }
@@ -283,6 +295,13 @@ declare module '@tanstack/react-router' {
       path: '/'
       fullPath: '/'
       preLoaderRoute: typeof _mainIndexRouteImport
+      parentRoute: typeof _mainRouteRoute
+    }
+    '/__main/worship-music': {
+      id: '/__main/worship-music'
+      path: '/worship-music'
+      fullPath: '/worship-music'
+      preLoaderRoute: typeof _mainWorshipMusicRouteImport
       parentRoute: typeof _mainRouteRoute
     }
     '/__main/user-management': {
@@ -439,6 +458,7 @@ interface _mainRouteRouteChildren {
   _mainSettingsRoute: typeof _mainSettingsRoute
   _mainSubscriptionsRoute: typeof _mainSubscriptionsRoute
   _mainUserManagementRoute: typeof _mainUserManagementRoute
+  _mainWorshipMusicRoute: typeof _mainWorshipMusicRoute
   _mainIndexRoute: typeof _mainIndexRoute
 }
 
@@ -456,6 +476,7 @@ const _mainRouteRouteChildren: _mainRouteRouteChildren = {
   _mainSettingsRoute: _mainSettingsRoute,
   _mainSubscriptionsRoute: _mainSubscriptionsRoute,
   _mainUserManagementRoute: _mainUserManagementRoute,
+  _mainWorshipMusicRoute: _mainWorshipMusicRoute,
   _mainIndexRoute: _mainIndexRoute,
 }
 
