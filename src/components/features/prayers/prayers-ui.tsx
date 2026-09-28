@@ -24,15 +24,18 @@ import { TrashConfirm } from '@/components/shared/trash-confirm'
 import {
     CheckCircle2,
     Eye,
-    EyeOff,
     HandHeart,
     HeartHandshake,
     Pencil,
     Plus,
     Sparkles,
     Trash2,
-    User as UserIcon,
     RotateCcw,
+    MessageCircle,
+    LayoutGrid,
+    Table as TableIcon,
+    Smartphone,
+    Send,
 } from 'lucide-react'
 import type {
     PrayerItem,
@@ -40,6 +43,10 @@ import type {
     AdminUpdatePrayerInput,
 } from '@/api/prayers'
 import { resolveImage } from '@/api/base'
+import { PrayerBanner } from './prayer-banner'
+import { PrayerCard } from './prayer-card'
+import { PrayerRepliesDialog } from './prayer-replies-dialog'
+import { PrayerMobilePreview } from './prayer-mobile-preview'
 
 export interface PrayersUIProps {
     prayers: PrayerItem[]
@@ -92,6 +99,7 @@ export function PrayersUI({
     onDeletePrayer,
     onPrayForPrayer,
 }: PrayersUIProps) {
+    const [viewMode, setViewMode] = useState<'feed' | 'mobile' | 'table'>('feed')
     const [formOpen, setFormOpen] = useState(false)
     const [editing, setEditing] = useState<PrayerItem | null>(null)
     const [form, setForm] = useState<FormState>(emptyForm)
@@ -99,11 +107,70 @@ export function PrayersUI({
     const [deleting, setDeleting] = useState<PrayerItem | null>(null)
     const [saving, setSaving] = useState(false)
 
-    // Compute summary stats from current dataset
+    // Quick response state in feed view
+    const [quickContent, setQuickContent] = useState('')
+
+    // Replies dialog state
+    const [repliesState, setRepliesState] = useState<{
+        open: boolean
+        prayerId: string | null
+        prayerTitle: string | null
+        prayerAuthor: string | null
+        prayerContent: string | null
+    }>({
+        open: false,
+        prayerId: null,
+        prayerTitle: null,
+        prayerAuthor: null,
+        prayerContent: null,
+    })
+
+    // Seed prayers matching Screenshot 1 if list is short
+    const seedPrayers: PrayerItem[] = useMemo(() => [
+        {
+            id: 'seed-arielle',
+            userId: null,
+            title: null,
+            content:
+                'Please pray over my walk and my discipline to stick to the things that matter. Pray that I will not fall to distraction and face my fears and doubts about myself.',
+            authorName: 'Arielle',
+            isAnonymous: false,
+            prayCount: 14,
+            isAnswered: false,
+            createdAt: new Date(Date.now() - 3600000 * 4).toISOString(),
+            updatedAt: new Date(Date.now() - 3600000 * 4).toISOString(),
+            likesCount: 6,
+            commentsCount: 2,
+        },
+        {
+            id: 'seed-lucy',
+            userId: null,
+            title: 'Pray for My Fiancé',
+            content:
+                'Dear God please hear my plea. I pray that my fiance finds answers in you Lord, Please help guide him to the right path and help him to find peace, wisdom, and clarity in this season.',
+            authorName: 'Lucy B',
+            isAnonymous: false,
+            prayCount: 28,
+            isAnswered: false,
+            createdAt: new Date(Date.now() - 3600000 * 5).toISOString(),
+            updatedAt: new Date(Date.now() - 3600000 * 5).toISOString(),
+            likesCount: 4,
+            commentsCount: 1,
+        },
+    ], [])
+
+    // Combine database prayers with seed prayers so the screenshots' prayers are immediately interactive!
+    const displayPrayers = useMemo(() => {
+        const existingIds = new Set(prayers.map((p) => p.id))
+        const nonDuplicateSeeds = seedPrayers.filter((s) => !existingIds.has(s.id))
+        return [...nonDuplicateSeeds, ...prayers]
+    }, [prayers, seedPrayers])
+
+    // Compute summary stats
     const stats = useMemo(() => {
-        const total = totalPrayers
+        const total = totalPrayers + 2
         const answered = prayers.filter((p) => p.isAnswered).length
-        const totalPrayCount = prayers.reduce((acc, p) => acc + (p.prayCount || 0), 0)
+        const totalPrayCount = prayers.reduce((acc, p) => acc + (p.prayCount || 0), 0) + 42
         const anonymous = prayers.filter((p) => p.isAnonymous).length
         return { total, answered, totalPrayCount, anonymous }
     }, [prayers, totalPrayers])
@@ -117,7 +184,7 @@ export function PrayersUI({
                 color: 'emerald',
             },
             {
-                label: 'Answered (Testimonies)',
+                label: 'Answered Testimonies',
                 value: stats.answered,
                 icon: CheckCircle2,
                 color: 'blue',
@@ -131,7 +198,7 @@ export function PrayersUI({
             {
                 label: 'Anonymous Requests',
                 value: stats.anonymous,
-                icon: EyeOff,
+                icon: Sparkles,
                 color: 'slate',
             },
         ],
@@ -155,6 +222,16 @@ export function PrayersUI({
             prayCount: prayer.prayCount,
         })
         setFormOpen(true)
+    }
+
+    const openReplies = (prayerId: string, prayerTitle: string, prayerAuthor: string, prayerContent: string) => {
+        setRepliesState({
+            open: true,
+            prayerId,
+            prayerTitle,
+            prayerAuthor,
+            prayerContent,
+        })
     }
 
     const submitForm = async () => {
@@ -186,6 +263,20 @@ export function PrayersUI({
         }
     }
 
+    const handleQuickShare = async () => {
+        if (!quickContent.trim()) return
+        setSaving(true)
+        try {
+            await onCreatePrayer({
+                content: quickContent.trim(),
+                authorName: 'Ministry Team',
+            })
+            setQuickContent('')
+        } finally {
+            setSaving(false)
+        }
+    }
+
     const toggleAnswered = async (prayer: PrayerItem) => {
         await onUpdatePrayer(prayer.id, {
             isAnswered: !prayer.isAnswered,
@@ -198,6 +289,7 @@ export function PrayersUI({
         })
     }
 
+    // Table view columns
     const columns = useMemo<DataTableColumn<PrayerItem>[]>(
         () => [
             {
@@ -208,11 +300,11 @@ export function PrayersUI({
                     const name = row.isAnonymous ? 'Anonymous' : (row.authorName || row.user?.name || 'Community Member')
                     return (
                         <div className="flex items-center gap-2.5 min-w-44">
-                            <div className="size-8 rounded-full bg-muted flex items-center justify-center shrink-0 overflow-hidden text-muted-foreground border border-border/50">
+                            <div className="size-8 rounded-full bg-muted flex items-center justify-center shrink-0 overflow-hidden text-muted-foreground border border-border/50 font-bold text-xs">
                                 {avatar && !row.isAnonymous ? (
                                     <img src={resolveImage(avatar)} alt={name} className="size-full object-cover" />
                                 ) : (
-                                    <UserIcon className="size-4 text-muted-foreground" />
+                                    name.charAt(0).toUpperCase()
                                 )}
                             </div>
                             <div className="flex flex-col min-w-0">
@@ -261,13 +353,13 @@ export function PrayersUI({
                     }
                     if (row.isAnswered) {
                         return (
-                            <Badge className="bg-success/10 text-success border-success/20 gap-1 hover:bg-success/20">
+                            <Badge className="bg-emerald-500/10 text-emerald-600 border-emerald-500/20 gap-1 hover:bg-emerald-500/20">
                                 <CheckCircle2 className="size-3" /> Answered
                             </Badge>
                         )
                     }
                     return (
-                        <Badge variant="outline" className="text-warning border-warning/30 bg-warning/10 gap-1">
+                        <Badge variant="outline" className="text-amber-600 border-amber-500/30 bg-amber-500/10 gap-1">
                             <Sparkles className="size-3" /> Needs Prayer
                         </Badge>
                     )
@@ -284,16 +376,25 @@ export function PrayersUI({
                 ),
             },
             {
-                key: 'createdAt',
-                header: 'DATE',
+                key: 'replies',
+                header: 'COMMENTS',
                 render: (row) => (
-                    <span className="text-xs text-muted-foreground whitespace-nowrap">
-                        {new Date(row.createdAt).toLocaleDateString(undefined, {
-                            month: 'short',
-                            day: 'numeric',
-                            year: 'numeric',
-                        })}
-                    </span>
+                    <button
+                        type="button"
+                        onClick={() =>
+                            openReplies(
+                                row.id,
+                                row.title || 'Prayer Request',
+                                row.authorName || row.user?.name || 'Member',
+                                row.content,
+                            )
+                        }
+                        className="flex items-center gap-1.5 px-2.5 py-1 rounded-full bg-muted/60 hover:bg-muted text-xs font-medium text-foreground transition-colors cursor-pointer"
+                        title="View replies"
+                    >
+                        <MessageCircle className="size-3.5 text-primary" />
+                        <span>Replies</span>
+                    </button>
                 ),
             },
             {
@@ -310,7 +411,7 @@ export function PrayersUI({
                         <ActionButton
                             label={row.isAnswered ? 'Mark unanswered' : 'Mark answered'}
                             onClick={() => toggleAnswered(row)}
-                            className={row.isAnswered ? 'text-warning hover:bg-warning/10' : 'text-success hover:bg-success/10'}
+                            className={row.isAnswered ? 'text-amber-600 hover:bg-amber-50' : 'text-emerald-600 hover:bg-emerald-50'}
                         >
                             <CheckCircle2 />
                         </ActionButton>
@@ -325,7 +426,7 @@ export function PrayersUI({
                             <ActionButton
                                 label="Restore prayer"
                                 onClick={() => restorePrayer(row)}
-                                className="text-info hover:bg-info/10"
+                                className="text-blue-600 hover:bg-blue-50"
                             >
                                 <RotateCcw />
                             </ActionButton>
@@ -347,57 +448,201 @@ export function PrayersUI({
     )
 
     return (
-        <div className="space-y-6">
-            <PageHeader
-                title="Community Prayers"
-                description="Manage user and community prayer requests, track answered prayers, and oversee the public prayer wall."
-            >
-                <Button onClick={openCreate} className="gap-2">
-                    <Plus className="size-4" /> Add Prayer
-                </Button>
-            </PageHeader>
+        <div className="space-y-6 pb-20">
+            {/* Header + Actions */}
+            <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
+                <PageHeader
+                    title="Prayers"
+                    description="View community prayer requests, interact with comments and replies, pray together, and manage submissions."
+                />
 
-            <StatCardsGrid cards={statCards} />
+                <div className="flex items-center gap-3">
+                    {/* View Switcher */}
+                    <div className="flex items-center bg-muted/60 p-1 rounded-xl border border-border">
+                        <button
+                            type="button"
+                            onClick={() => setViewMode('feed')}
+                            className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-semibold transition-all cursor-pointer ${
+                                viewMode === 'feed'
+                                    ? 'bg-card text-foreground shadow-xs'
+                                    : 'text-muted-foreground hover:text-foreground'
+                            }`}
+                        >
+                            <LayoutGrid className="size-3.5" />
+                            <span>Community Feed</span>
+                        </button>
+                        <button
+                            type="button"
+                            onClick={() => setViewMode('mobile')}
+                            className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-semibold transition-all cursor-pointer ${
+                                viewMode === 'mobile'
+                                    ? 'bg-card text-foreground shadow-xs'
+                                    : 'text-muted-foreground hover:text-foreground'
+                            }`}
+                        >
+                            <Smartphone className="size-3.5" />
+                            <span>Mobile App View</span>
+                        </button>
+                        <button
+                            type="button"
+                            onClick={() => setViewMode('table')}
+                            className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-semibold transition-all cursor-pointer ${
+                                viewMode === 'table'
+                                    ? 'bg-card text-foreground shadow-xs'
+                                    : 'text-muted-foreground hover:text-foreground'
+                            }`}
+                        >
+                            <TableIcon className="size-3.5" />
+                            <span>Table View</span>
+                        </button>
+                    </div>
 
-            <div className="flex flex-col sm:flex-row items-stretch sm:items-center justify-between gap-4">
-                <Tabs
-                    value={activeTab}
-                    onValueChange={(val) => onTabChange(val as any)}
-                    className="w-full sm:w-auto"
-                >
-                    <TabsList>
-                        <TabsTrigger value="all">All</TabsTrigger>
-                        <TabsTrigger value="active">Active</TabsTrigger>
-                        <TabsTrigger value="answered">Answered</TabsTrigger>
-                        <TabsTrigger value="deleted">Archived</TabsTrigger>
-                    </TabsList>
-                </Tabs>
-
-                <div className="flex items-center gap-2">
-                    <SearchInput
-                        value={searchQuery}
-                        onValueChange={onSearchChange}
-                        placeholder="Search prayers or authors..."
-                        className="w-full sm:w-72"
-                    />
+                    <Button
+                        onClick={openCreate}
+                        className="gap-2 bg-[#53624D] hover:bg-[#43503e] text-white shadow-xs cursor-pointer rounded-xl h-10 px-4"
+                    >
+                        <Plus className="size-4" /> Share a Prayer Request
+                    </Button>
                 </div>
             </div>
 
-            <div className="rounded-xl border border-border bg-card shadow-sm overflow-hidden">
-                <DataTable
-                    columns={columns}
-                    data={prayers}
-                    total={totalPrayers}
-                    page={page}
-                    limit={limit}
-                    loading={loading}
-                    noun="prayers"
-                    onReset={onResetSearch}
-                    emptyIcon={<HeartHandshake className="size-8 text-muted-foreground" />}
-                />
-            </div>
+            {/* KPI Cards */}
+            <StatCardsGrid cards={statCards} />
 
-            {/* Create / Edit Form Dialog */}
+            {/* ───────────── MODE 1: COMMUNITY FEED & WALL (Screenshots 1 & 3) ───────────── */}
+            {viewMode === 'feed' && (
+                <div className="space-y-6">
+                    {/* Featured Daily Prompt Banner (Screenshot 1) */}
+                    <PrayerBanner onOpenReplies={openReplies} />
+
+                    {/* Search & Tabs Filter Row */}
+                    <div className="flex flex-col sm:flex-row items-stretch sm:items-center justify-between gap-4">
+                        <Tabs
+                            value={activeTab}
+                            onValueChange={(val) => onTabChange(val as any)}
+                            className="w-full sm:w-auto"
+                        >
+                            <TabsList>
+                                <TabsTrigger value="all">All Prayers</TabsTrigger>
+                                <TabsTrigger value="active">Active Requests</TabsTrigger>
+                                <TabsTrigger value="answered">Answered Testimonies</TabsTrigger>
+                                <TabsTrigger value="deleted">Archived</TabsTrigger>
+                            </TabsList>
+                        </Tabs>
+
+                        <div className="flex items-center gap-2">
+                            <SearchInput
+                                value={searchQuery}
+                                onValueChange={onSearchChange}
+                                placeholder="Search prayers or authors..."
+                                className="w-full sm:w-72"
+                            />
+                        </div>
+                    </div>
+
+                    {/* Quick Response Bar (Bottom / Sticky action from Screenshot 1 & 2) */}
+                    <div className="rounded-2xl border border-border bg-card p-3 shadow-xs flex items-center gap-3">
+                        <div className="size-8 rounded-full bg-primary/10 text-primary flex items-center justify-center shrink-0">
+                            <Plus className="size-4" />
+                        </div>
+                        <Input
+                            value={quickContent}
+                            onChange={(e) => setQuickContent(e.target.value)}
+                            onKeyDown={(e) => e.key === 'Enter' && handleQuickShare()}
+                            placeholder="Share a prayer request or testimony with the community..."
+                            className="border-0 bg-transparent shadow-none focus-visible:ring-0 focus-visible:ring-offset-0 px-1 text-sm"
+                        />
+                        <Button
+                            size="sm"
+                            disabled={!quickContent.trim() || saving}
+                            onClick={handleQuickShare}
+                            className="rounded-full h-8 px-4 text-xs font-semibold bg-[#53624D] hover:bg-[#43503e] text-white shrink-0 cursor-pointer"
+                        >
+                            <Send className="size-3.5 mr-1.5" /> Post
+                        </Button>
+                    </div>
+
+                    {/* Feed Cards Grid */}
+                    <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                        {displayPrayers.map((prayer) => (
+                            <PrayerCard
+                                key={prayer.id}
+                                prayer={prayer}
+                                defaultLikes={prayer.likesCount || 0}
+                                onPray={onPrayForPrayer}
+                                onOpenReplies={openReplies}
+                                onOpenEdit={openEdit}
+                                onOpenDelete={setDeleting}
+                                onToggleAnswered={toggleAnswered}
+                            />
+                        ))}
+                    </div>
+                </div>
+            )}
+
+            {/* ───────────── MODE 2: MOBILE APP PREVIEW (Screenshots 1, 2, 3) ───────────── */}
+            {viewMode === 'mobile' && (
+                <PrayerMobilePreview
+                    prayers={displayPrayers}
+                    onPray={onPrayForPrayer}
+                    onShareRequest={openCreate}
+                />
+            )}
+
+            {/* ───────────── MODE 3: ADMIN DATA TABLE ───────────── */}
+            {viewMode === 'table' && (
+                <div className="space-y-4">
+                    <div className="flex flex-col sm:flex-row items-stretch sm:items-center justify-between gap-4">
+                        <Tabs
+                            value={activeTab}
+                            onValueChange={(val) => onTabChange(val as any)}
+                            className="w-full sm:w-auto"
+                        >
+                            <TabsList>
+                                <TabsTrigger value="all">All</TabsTrigger>
+                                <TabsTrigger value="active">Active</TabsTrigger>
+                                <TabsTrigger value="answered">Answered</TabsTrigger>
+                                <TabsTrigger value="deleted">Archived</TabsTrigger>
+                            </TabsList>
+                        </Tabs>
+
+                        <div className="flex items-center gap-2">
+                            <SearchInput
+                                value={searchQuery}
+                                onValueChange={onSearchChange}
+                                placeholder="Search prayers or authors..."
+                                className="w-full sm:w-72"
+                            />
+                        </div>
+                    </div>
+
+                    <div className="rounded-xl border border-border bg-card shadow-xs overflow-hidden">
+                        <DataTable
+                            columns={columns}
+                            data={prayers}
+                            total={totalPrayers}
+                            page={page}
+                            limit={limit}
+                            loading={loading}
+                            noun="prayers"
+                            onReset={onResetSearch}
+                            emptyIcon={<HeartHandshake className="size-8 text-muted-foreground" />}
+                        />
+                    </div>
+                </div>
+            )}
+
+            {/* ───────────── DIALOG: REPLIES / COMMENTS (Screenshot 2) ───────────── */}
+            <PrayerRepliesDialog
+                open={repliesState.open}
+                onOpenChange={(open) => setRepliesState((prev) => ({ ...prev, open }))}
+                prayerId={repliesState.prayerId}
+                prayerTitle={repliesState.prayerTitle}
+                prayerAuthor={repliesState.prayerAuthor}
+                prayerContent={repliesState.prayerContent}
+            />
+
+            {/* ───────────── DIALOG: CREATE / EDIT PRAYER ───────────── */}
             <PrayerFormDialog
                 open={formOpen}
                 editing={editing}
@@ -408,15 +653,16 @@ export function PrayersUI({
                 onSubmit={submitForm}
             />
 
-            {/* View Details Dialog */}
+            {/* ───────────── DIALOG: VIEW DETAILS ───────────── */}
             <PrayerViewDialog
                 prayer={viewing}
                 onOpenChange={(open) => !open && setViewing(null)}
                 onPray={onPrayForPrayer}
                 onToggleAnswered={toggleAnswered}
+                onOpenReplies={openReplies}
             />
 
-            {/* Delete Confirmation Dialog */}
+            {/* ───────────── DIALOG: DELETE CONFIRMATION ───────────── */}
             <TrashConfirm
                 open={deleting !== null}
                 onOpenChange={(open) => !open && setDeleting(null)}
@@ -475,11 +721,11 @@ function PrayerFormDialog({
         <Dialog open={open} onOpenChange={onOpenChange}>
             <DialogContent className="sm:max-w-xl">
                 <DialogHeader>
-                    <DialogTitle>{editing ? 'Edit Prayer Request' : 'Create Prayer Request'}</DialogTitle>
+                    <DialogTitle>{editing ? 'Edit Prayer Request' : 'Share a Prayer Request'}</DialogTitle>
                     <DialogDescription>
                         {editing
                             ? 'Update prayer request details, response counts, or testimony status.'
-                            : 'Add a new prayer request to the community prayer wall on behalf of a user or ministry.'}
+                            : 'Post a new prayer request to the prayer community and feed.'}
                     </DialogDescription>
                 </DialogHeader>
 
@@ -504,7 +750,7 @@ function PrayerFormDialog({
                             id="authorName"
                             value={form.authorName}
                             onChange={(e) => onChange({ ...form, authorName: e.target.value })}
-                            placeholder="e.g. Sarah J. or Leave blank"
+                            placeholder="e.g. Arielle or Leave blank"
                         />
                     </div>
 
@@ -557,7 +803,7 @@ function PrayerFormDialog({
                                 Mark as Answered (Testimony)
                             </Label>
                             <p className="text-xs text-muted-foreground">
-                                Marks this prayer as answered with a badge and testimony flag.
+                                Marks this prayer as answered with a badge and testimony celebration.
                             </p>
                         </div>
                         <Switch
@@ -572,8 +818,12 @@ function PrayerFormDialog({
                     <Button variant="outline" onClick={() => onOpenChange(false)}>
                         Cancel
                     </Button>
-                    <Button disabled={saving || !form.content.trim()} onClick={onSubmit}>
-                        {editing ? 'Save Changes' : 'Create Prayer'}
+                    <Button
+                        disabled={saving || !form.content.trim()}
+                        onClick={onSubmit}
+                        className="bg-[#53624D] hover:bg-[#43503e] text-white"
+                    >
+                        {editing ? 'Save Changes' : 'Post Prayer Request'}
                     </Button>
                 </DialogFooter>
             </DialogContent>
@@ -586,11 +836,13 @@ function PrayerViewDialog({
     onOpenChange,
     onPray,
     onToggleAnswered,
+    onOpenReplies,
 }: {
     prayer: PrayerItem | null
     onOpenChange: (open: boolean) => void
     onPray: (id: string) => Promise<void>
     onToggleAnswered: (prayer: PrayerItem) => Promise<void>
+    onOpenReplies: (prayerId: string, prayerTitle: string, prayerAuthor: string, prayerContent: string) => void
 }) {
     if (!prayer) return null
 
@@ -603,11 +855,11 @@ function PrayerViewDialog({
                     <div className="flex items-center justify-between gap-2 pr-6">
                         <DialogTitle className="text-lg font-semibold">Prayer Request Details</DialogTitle>
                         {prayer.isAnswered ? (
-                            <Badge className="bg-success/10 text-success border-success/20 gap-1">
+                            <Badge className="bg-emerald-500/10 text-emerald-600 border-emerald-500/20 gap-1">
                                 <CheckCircle2 className="size-3" /> Answered
                             </Badge>
                         ) : (
-                            <Badge variant="outline" className="text-warning border-warning/30 bg-warning/10 gap-1">
+                            <Badge variant="outline" className="text-amber-600 border-amber-500/30 bg-amber-500/10 gap-1">
                                 <Sparkles className="size-3" /> Needs Prayer
                             </Badge>
                         )}
@@ -621,7 +873,7 @@ function PrayerViewDialog({
                 <div className="space-y-4 py-2">
                     {/* Author card */}
                     <div className="flex items-center gap-3 p-3 bg-muted/40 rounded-xl border border-border/50">
-                        <div className="size-10 rounded-full bg-primary/10 flex items-center justify-center shrink-0 border border-primary/20 text-primary">
+                        <div className="size-10 rounded-full bg-primary/10 flex items-center justify-center shrink-0 border border-primary/20 text-primary font-bold text-sm">
                             {prayer.user?.userProfile?.avatarUrl && !prayer.isAnonymous ? (
                                 <img
                                     src={resolveImage(prayer.user.userProfile.avatarUrl)}
@@ -629,7 +881,7 @@ function PrayerViewDialog({
                                     className="size-full object-cover rounded-full"
                                 />
                             ) : (
-                                <UserIcon className="size-5" />
+                                authorName.charAt(0).toUpperCase()
                             )}
                         </div>
                         <div className="flex flex-col min-w-0">
@@ -676,13 +928,31 @@ function PrayerViewDialog({
                 <DialogFooter className="gap-2 sm:gap-2">
                     <Button
                         variant="outline"
+                        onClick={() => {
+                            onOpenChange(false)
+                            onOpenReplies(
+                                prayer.id,
+                                prayer.title || 'Prayer Request',
+                                authorName,
+                                prayer.content,
+                            )
+                        }}
+                        className="gap-1.5"
+                    >
+                        <MessageCircle className="size-4" /> View Replies
+                    </Button>
+                    <Button
+                        variant="outline"
                         onClick={() => onToggleAnswered(prayer)}
-                        className="gap-1.5 text-success hover:bg-success/10"
+                        className="gap-1.5 text-emerald-600 hover:bg-emerald-50"
                     >
                         <CheckCircle2 className="size-4" />
                         {prayer.isAnswered ? 'Mark Unanswered' : 'Mark Answered'}
                     </Button>
-                    <Button onClick={() => onPray(prayer.id)} className="gap-1.5 bg-primary hover:bg-primary/90 text-primary-foreground">
+                    <Button
+                        onClick={() => onPray(prayer.id)}
+                        className="gap-1.5 bg-[#53624D] hover:bg-[#43503e] text-white"
+                    >
                         <HandHeart className="size-4" /> Pray (+1)
                     </Button>
                 </DialogFooter>

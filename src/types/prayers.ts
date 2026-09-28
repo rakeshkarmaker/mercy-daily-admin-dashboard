@@ -24,10 +24,23 @@ export type PrayerItem = {
     prayCount: number
     isAnswered: boolean
     createdAt: string
-    updatedAt: string
+    likesCount?: number
+    commentsCount?: number
+    isLiked?: boolean
     deletedAt?: string | null
     user?: AdminPrayerUser | null
     author?: PrayerAuthor | null
+}
+
+export type PrayerComment = {
+    id: string
+    prayerId: string
+    authorName: string
+    authorAvatar?: string | null
+    content: string
+    likesCount: number
+    isLiked?: boolean
+    createdAt: string
 }
 
 export type PaginatedAdminPrayers = {

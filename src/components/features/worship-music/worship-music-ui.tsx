@@ -39,7 +39,6 @@ import {
     Pencil,
     Play,
     Plus,
-    RotateCcw,
     SkipBack,
     SkipForward,
     Sparkles,

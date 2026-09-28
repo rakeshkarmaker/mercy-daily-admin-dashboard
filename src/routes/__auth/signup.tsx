@@ -60,7 +60,7 @@ function RouteComponent() {
                 body: JSON.stringify(payload),
             })
         },
-        onSuccess: async (data, variables) => {
+        onSuccess: async (_data, variables) => {
             toast.success('Registration successful! Please verify your email.')
             navigate({
                 to: '/verification',
