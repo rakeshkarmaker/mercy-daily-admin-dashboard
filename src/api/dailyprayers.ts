@@ -68,3 +68,30 @@ export function schedulePrayer(id: number, scheduledFor: string) {
         body: JSON.stringify({ scheduledFor }),
     })
 }
+
+export function updateSchedule(id: number, input: { devotionId?: number; scheduledFor?: string }) {
+    return request<PrayerSchedule>(`/dailyprayers/schedules/${id}`, {
+        method: 'PATCH',
+        body: JSON.stringify(input),
+    })
+}
+
+export function deleteSchedule(id: number) {
+    return request<void>(`/dailyprayers/schedules/${id}`, { method: 'DELETE' })
+}
+
+export type TodayPrayer = {
+    id?: number
+    date: string
+    verse: string
+    reference: string
+    reflection: string
+    prayer: string
+    practice?: string | null
+    createdAt?: string
+    updatedAt?: string
+}
+
+export function getTodayPrayer() {
+    return request<TodayPrayer>('/dailyprayers/today')
+}

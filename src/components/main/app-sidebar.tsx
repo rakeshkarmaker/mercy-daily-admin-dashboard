@@ -8,7 +8,6 @@ import { Sidebar, SidebarContent, SidebarFooter, SidebarHeader, SidebarRail } fr
 import {
     BookOpen,
     Church,
-    ClipboardList,
     Clapperboard,
     CreditCard,
     Flag,
@@ -30,7 +29,6 @@ const NAV_ITEMS = [
     { title: 'Worship Music', url: '/worship-music', icon: <Music className="size-4" /> },
     { title: 'Prayer Management', url: '/prayer-management', icon: <HandHeart className="size-4" /> },
     { title: 'Prayers', url: '/prayers', icon: <HeartHandshake className="size-4" /> },
-    { title: 'Daily Content', url: '/daily-content', icon: <ClipboardList className="size-4" /> },
     { title: 'Community Post', url: '/community', icon: <Users className="size-4" /> },
     { title: 'Post Reports', url: '/reports', icon: <Flag className="size-4" /> },
     { title: 'User Management', url: '/user-management', icon: <UsersRound className="size-4" /> },

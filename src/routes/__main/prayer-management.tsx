@@ -5,13 +5,24 @@ import { useSearchParams } from '@/hooks/use-search-params'
 import { toast } from 'sonner'
 import * as z from 'zod'
 import { PrayerManagementUI } from '@/components/features/prayer-management/prayer-management-ui'
-import { createPrayer, deletePrayer, listPrayers, listSchedules, schedulePrayer, updatePrayer } from '@/api/dailyprayers'
+import {
+    createPrayer,
+    deletePrayer,
+    deleteSchedule,
+    getTodayPrayer,
+    listPrayers,
+    listSchedules,
+    schedulePrayer,
+    updatePrayer,
+    updateSchedule,
+} from '@/api/dailyprayers'
 import type { PrayerInput } from '@/api/dailyprayers'
 
 const searchSchema = z.object({
     page: z.number().catch(1).optional(),
     limit: z.number().catch(10).optional(),
     search: z.string().catch('').optional(),
+    tab: z.enum(['today', 'library', 'schedules']).catch('today').optional(),
 })
 
 export const Route = createFileRoute('/__main/prayer-management')({
@@ -20,7 +31,7 @@ export const Route = createFileRoute('/__main/prayer-management')({
 })
 
 function PrayerManagementPage() {
-    const { page = 1, limit = 10, search: searchQuery = '' } = Route.useSearch()
+    const { page = 1, limit = 10, search: searchQuery = '', tab = 'today' } = Route.useSearch()
     const mergeSearch = useSearchParams()
     const queryClient = useQueryClient()
 
@@ -31,6 +42,10 @@ function PrayerManagementPage() {
     const { data: schedules = [] } = useQuery({
         queryKey: ['dailyprayer-schedules'],
         queryFn: listSchedules,
+    })
+    const { data: todayPrayer, isLoading: isTodayLoading } = useQuery({
+        queryKey: ['dailyprayers-today'],
+        queryFn: getTodayPrayer,
     })
 
     const prayers = useMemo(() => {
@@ -46,6 +61,7 @@ function PrayerManagementPage() {
     const invalidate = () => {
         queryClient.invalidateQueries({ queryKey: ['dailyprayers'] })
         queryClient.invalidateQueries({ queryKey: ['dailyprayer-schedules'] })
+        queryClient.invalidateQueries({ queryKey: ['dailyprayers-today'] })
     }
 
     const createMutation = useMutation({
@@ -68,22 +84,39 @@ function PrayerManagementPage() {
         onSuccess: (_, variables) => { toast.success(`Prayer scheduled for ${variables.date}`); invalidate() },
         onError: (error: Error) => toast.error(error.message),
     })
+    const updateScheduleMutation = useMutation({
+        mutationFn: ({ id, input }: { id: number; input: { devotionId?: number; scheduledFor?: string } }) =>
+            updateSchedule(id, input),
+        onSuccess: () => { toast.success('Schedule override updated'); invalidate() },
+        onError: (error: Error) => toast.error(error.message),
+    })
+    const deleteScheduleMutation = useMutation({
+        mutationFn: (id: number) => deleteSchedule(id),
+        onSuccess: () => { toast.success('Schedule override removed'); invalidate() },
+        onError: (error: Error) => toast.error(error.message),
+    })
 
     return (
         <PrayerManagementUI
             prayers={prayers}
             schedules={schedules}
+            todayPrayer={todayPrayer}
+            todayLoading={isTodayLoading}
             totalPrayers={data?.total ?? 0}
             loading={isLoading}
             page={page}
             limit={limit}
             searchQuery={searchQuery}
+            activeTab={tab}
+            onTabChange={(newTab) => mergeSearch({ tab: newTab === 'today' ? undefined : newTab, page: 1 })}
             onSearchChange={(value) => mergeSearch({ search: value || undefined, page: 1 })}
             onResetSearch={() => mergeSearch({ search: undefined, page: 1 })}
             onCreatePrayer={(input) => createMutation.mutateAsync(input).then(() => undefined)}
             onUpdatePrayer={(id, input) => updateMutation.mutateAsync({ id, input }).then(() => undefined)}
             onDeletePrayer={(id) => deleteMutation.mutateAsync(id).then(() => undefined)}
             onSchedulePrayer={(id, date) => scheduleMutation.mutateAsync({ id, date }).then(() => undefined)}
+            onUpdateSchedule={(id, input) => updateScheduleMutation.mutateAsync({ id, input }).then(() => undefined)}
+            onDeleteSchedule={(id) => deleteScheduleMutation.mutateAsync(id).then(() => undefined)}
         />
     )
 }

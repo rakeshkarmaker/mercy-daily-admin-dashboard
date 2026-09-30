@@ -1,4 +1,4 @@
-import { useMemo, useState } from 'react'
+import { useEffect, useMemo, useState } from 'react'
 import { DataTable } from '@/components/shared/data-table'
 import type { DataTableColumn } from '@/components/shared/data-table'
 import { PageHeader } from '@/components/shared/page-header'
@@ -6,26 +6,55 @@ import { SearchInput } from '@/components/shared/search-input'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Textarea } from '@/components/ui/textarea'
-import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from '@/components/ui/dialog'
+import { Badge } from '@/components/ui/badge'
+import {
+    Dialog,
+    DialogContent,
+    DialogDescription,
+    DialogFooter,
+    DialogHeader,
+    DialogTitle,
+} from '@/components/ui/dialog'
 import { TrashConfirm } from '@/components/shared/trash-confirm'
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs'
-import { Calendar, CheckSquare, Eye, HandHeart, Pencil, Plus, Quote, Trash2 } from 'lucide-react'
-import type { Prayer, PrayerInput, PrayerSchedule } from '@/api/dailyprayers'
+import {
+    BookOpen,
+    Calendar,
+    CalendarPlus,
+    Check,
+    CheckSquare,
+    Copy,
+    Eye,
+    HandHeart,
+    Pencil,
+    Plus,
+    Quote,
+    Search,
+    Trash2,
+} from 'lucide-react'
+import type { Prayer, PrayerInput, PrayerSchedule, TodayPrayer } from '@/api/dailyprayers'
+import { toast } from 'sonner'
 
 export interface PrayerManagementUIProps {
     prayers: Prayer[]
     schedules: PrayerSchedule[]
+    todayPrayer?: TodayPrayer | null
+    todayLoading?: boolean
     totalPrayers: number
     loading?: boolean
     page: number
     limit: number
     searchQuery: string
+    activeTab?: 'today' | 'library' | 'schedules'
+    onTabChange?: (tab: 'today' | 'library' | 'schedules') => void
     onSearchChange: (value: string) => void
     onResetSearch: () => void
     onCreatePrayer: (input: PrayerInput) => Promise<void>
     onUpdatePrayer: (id: number, input: Partial<PrayerInput>) => Promise<void>
     onDeletePrayer: (id: number) => Promise<void>
     onSchedulePrayer: (id: number, scheduledFor: string) => Promise<void>
+    onUpdateSchedule?: (id: number, input: { devotionId?: number; scheduledFor?: string }) => Promise<void>
+    onDeleteSchedule?: (id: number) => Promise<void>
 }
 
 type FormState = PrayerInput
@@ -51,20 +80,92 @@ const createEmptyLanguageForms = (): Record<ContentLanguage, FormState> => ({
     pt: { ...emptyForm },
 })
 
+function formatScheduleDate(dateStr: string) {
+    if (!dateStr) return ''
+    const ymd = dateStr.slice(0, 10)
+    const parts = ymd.split('-').map(Number)
+    if (parts.length === 3 && !parts.some(isNaN)) {
+        const [year, month, day] = parts
+        const d = new Date(year, month - 1, day)
+        return d.toLocaleDateString('en-US', {
+            weekday: 'short',
+            month: 'short',
+            day: 'numeric',
+            year: 'numeric',
+        })
+    }
+    return new Date(dateStr).toLocaleDateString()
+}
+
+function getScheduleStatus(dateStr: string) {
+    if (!dateStr) return { label: 'Scheduled', color: 'bg-muted text-muted-foreground border-border' }
+    const today = new Date()
+    const todayYMD = `${today.getFullYear()}-${String(today.getMonth() + 1).padStart(2, '0')}-${String(today.getDate()).padStart(2, '0')}`
+    const targetYMD = dateStr.slice(0, 10)
+
+    const targetDate = new Date(`${targetYMD}T00:00:00`)
+    const todayDate = new Date(`${todayYMD}T00:00:00`)
+    const diffTime = targetDate.getTime() - todayDate.getTime()
+    const diffDays = Math.round(diffTime / (1000 * 60 * 60 * 24))
+
+    if (diffDays === 0) {
+        return { label: 'Today', color: 'bg-emerald-500/10 text-emerald-600 border-emerald-500/20' }
+    } else if (diffDays === 1) {
+        return { label: 'Tomorrow', color: 'bg-blue-500/10 text-blue-600 border-blue-500/20' }
+    } else if (diffDays > 1) {
+        return { label: `In ${diffDays} days`, color: 'bg-blue-500/10 text-blue-600 border-blue-500/20' }
+    } else if (diffDays === -1) {
+        return { label: 'Yesterday', color: 'bg-muted text-muted-foreground border-border' }
+    } else {
+        return { label: `${Math.abs(diffDays)} days ago`, color: 'bg-muted text-muted-foreground border-border' }
+    }
+}
+
+function ActionButton({
+    label,
+    onClick,
+    children,
+    className,
+}: {
+    label: string
+    onClick: () => void
+    children: React.ReactNode
+    className?: string
+}) {
+    return (
+        <Button
+            variant="ghost"
+            size="icon"
+            onClick={onClick}
+            title={label}
+            className={`size-8 text-muted-foreground transition-colors cursor-pointer ${className ?? ''}`}
+        >
+            <span className="sr-only">{label}</span>
+            {children}
+        </Button>
+    )
+}
+
 export function PrayerManagementUI({
     prayers,
     schedules,
+    todayPrayer,
+    todayLoading = false,
     totalPrayers,
     loading = false,
     page,
     limit,
     searchQuery,
+    activeTab = 'today',
+    onTabChange,
     onSearchChange,
     onResetSearch,
     onCreatePrayer,
     onUpdatePrayer,
     onDeletePrayer,
     onSchedulePrayer,
+    onUpdateSchedule,
+    onDeleteSchedule,
 }: PrayerManagementUIProps) {
     const [formOpen, setFormOpen] = useState(false)
     const [editing, setEditing] = useState<Prayer | null>(null)
@@ -76,6 +177,12 @@ export function PrayerManagementUI({
     const [scheduling, setScheduling] = useState<Prayer | null>(null)
     const [scheduledFor, setScheduledFor] = useState(new Date().toISOString().slice(0, 10))
     const [saving, setSaving] = useState(false)
+    const [copied, setCopied] = useState(false)
+
+    // Schedule management state
+    const [editingSchedule, setEditingSchedule] = useState<PrayerSchedule | null>(null)
+    const [createScheduleOpen, setCreateScheduleOpen] = useState(false)
+    const [deletingSchedule, setDeletingSchedule] = useState<PrayerSchedule | null>(null)
 
     const openCreate = () => {
         setEditing(null)
@@ -98,6 +205,48 @@ export function PrayerManagementUI({
         setFormOpen(true)
     }
 
+    const handleEditToday = () => {
+        if (!todayPrayer) return
+        if (todayPrayer.id) {
+            openEdit({
+                id: todayPrayer.id,
+                verse: todayPrayer.verse,
+                reference: todayPrayer.reference,
+                reflection: todayPrayer.reflection,
+                prayer: todayPrayer.prayer,
+                practice: todayPrayer.practice ?? '',
+                createdAt: todayPrayer.createdAt ?? new Date().toISOString(),
+                updatedAt: todayPrayer.updatedAt ?? new Date().toISOString(),
+            })
+        } else {
+            const match = prayers.find((p) => p.reference === todayPrayer.reference)
+            if (match) {
+                openEdit(match)
+            } else {
+                setEditing(null)
+                setForm({
+                    verse: todayPrayer.verse,
+                    reference: todayPrayer.reference,
+                    reflection: todayPrayer.reflection,
+                    prayer: todayPrayer.prayer,
+                    practice: todayPrayer.practice ?? '',
+                })
+                setFormOpen(true)
+            }
+        }
+    }
+
+    const handleCopyTodayDevotion = () => {
+        if (!todayPrayer) return
+        const text = `📖 Verse: ${todayPrayer.reference}\n"${todayPrayer.verse}"\n\n🕊️ Reflection:\n${todayPrayer.reflection}\n\n🙏 Prayer:\n${todayPrayer.prayer}${
+            todayPrayer.practice ? `\n\n✨ Faith Practice:\n${todayPrayer.practice}` : ''
+        }`
+        navigator.clipboard.writeText(text)
+        setCopied(true)
+        toast.success("Today's devotion copied to clipboard!")
+        setTimeout(() => setCopied(false), 2000)
+    }
+
     const submitForm = async () => {
         const values = editing ? form : languageForms[activeLanguage]
         if (!values.verse.trim() || !values.reference.trim() || !values.prayer.trim()) return
@@ -111,12 +260,97 @@ export function PrayerManagementUI({
         }
     }
 
+    const handleUpdateSchedule = async (date: string, prayerId: number) => {
+        if (!editingSchedule) return
+        setSaving(true)
+        try {
+            if (onUpdateSchedule) {
+                await onUpdateSchedule(editingSchedule.id, {
+                    scheduledFor: date,
+                    devotionId: prayerId,
+                })
+            } else {
+                await onSchedulePrayer(prayerId, date)
+            }
+            setEditingSchedule(null)
+        } finally {
+            setSaving(false)
+        }
+    }
+
+    const handleCreateSchedule = async (prayerId: number, date: string) => {
+        setSaving(true)
+        try {
+            await onSchedulePrayer(prayerId, date)
+            setCreateScheduleOpen(false)
+        } finally {
+            setSaving(false)
+        }
+    }
+
     const scheduleColumns = useMemo<DataTableColumn<PrayerSchedule>[]>(
         () => [
-            { key: 'scheduledFor', header: 'SCHEDULED DATE', render: (row) => <span className="font-semibold text-foreground">{new Date(row.scheduledFor).toLocaleDateString()}</span> },
-            { key: 'reference', header: 'REFERENCE', render: (row) => <span className="text-muted-foreground">{row.prayer.reference}</span> },
-            { key: 'verse', header: 'VERSE', render: (row) => <span className="line-clamp-2 max-w-90 text-muted-foreground">{row.prayer.verse}</span> },
-            { key: 'action', header: 'ACTION', render: (row) => <ActionButton label="View" onClick={() => setViewing(row.prayer)}><Eye /></ActionButton> },
+            {
+                key: 'scheduledFor',
+                header: 'SCHEDULED DATE',
+                render: (row) => {
+                    const status = getScheduleStatus(row.scheduledFor)
+                    return (
+                        <div className="flex flex-col gap-1 items-start">
+                            <span className="font-semibold text-foreground">
+                                {formatScheduleDate(row.scheduledFor)}
+                            </span>
+                            <span className={`inline-flex items-center rounded-full border px-2 py-0.5 text-[11px] font-medium ${status.color}`}>
+                                {status.label}
+                            </span>
+                        </div>
+                    )
+                },
+            },
+            {
+                key: 'reference',
+                header: 'REFERENCE',
+                render: (row) => <span className="font-semibold text-foreground">{row.prayer.reference}</span>,
+            },
+            {
+                key: 'verse',
+                header: 'SCRIPTURE VERSE',
+                render: (row) => <span className="line-clamp-2 max-w-72 text-muted-foreground italic">“{row.prayer.verse}”</span>,
+            },
+            {
+                key: 'prayer',
+                header: 'PRAYER / REFLECTION',
+                render: (row) => (
+                    <span className="line-clamp-2 max-w-72 text-muted-foreground">
+                        {row.prayer.reflection || row.prayer.prayer}
+                    </span>
+                ),
+            },
+            {
+                key: 'actions',
+                header: 'ACTIONS',
+                render: (row) => (
+                    <div className="flex items-center justify-center gap-1">
+                        <ActionButton label="View Devotional" onClick={() => setViewing(row.prayer)}>
+                            <Eye className="size-4" />
+                        </ActionButton>
+                        <ActionButton
+                            label="Reschedule / Edit Date"
+                            onClick={() => setEditingSchedule(row)}
+                            className="text-[#53624D] hover:bg-[#53624D]/10"
+                        >
+                            <Calendar className="size-4" />
+                        </ActionButton>
+                        <ActionButton
+                            label="Remove Schedule Override"
+                            onClick={() => setDeletingSchedule(row)}
+                            className="text-destructive hover:bg-destructive/10"
+                        >
+                            <Trash2 className="size-4" />
+                        </ActionButton>
+                    </div>
+                ),
+            },
         ],
         [],
     )
@@ -140,15 +374,48 @@ export function PrayerManagementUI({
                 render: (row) => <span className="text-muted-foreground">{new Date(row.updatedAt).toLocaleDateString()}</span>,
             },
             {
+                key: 'practice',
+                header: 'PRACTICAL STEP',
+                render: (row) =>
+                    row.practice ? (
+                        <span className="line-clamp-2 max-w-60 text-xs text-muted-foreground" title={row.practice}>
+                            {row.practice}
+                        </span>
+                    ) : (
+                        <span className="text-xs text-muted-foreground/40 italic">None</span>
+                    ),
+            },
+            {
                 key: 'actions',
                 header: 'ACTIONS',
                 render: (row) => (
                     <div className="flex items-center justify-center gap-1">
-                        <ActionButton label="View" onClick={() => setViewing(row)}><Eye /></ActionButton>
-                        <ActionButton label="Edit" onClick={() => openEdit(row)}><Pencil /></ActionButton>
-                        <ActionButton label="Today" onClick={() => onSchedulePrayer(row.id, new Date().toISOString().slice(0, 10))} className="text-success hover:bg-success/10"><CheckSquare /></ActionButton>
-                        <ActionButton label="Schedule" onClick={() => { setScheduling(row); setScheduledFor(new Date().toISOString().slice(0, 10)) }} className="text-info hover:bg-info/10"><Calendar /></ActionButton>
-                        <ActionButton label="Delete" onClick={() => setDeleting(row)} className="text-destructive hover:bg-destructive/10"><Trash2 /></ActionButton>
+                        <ActionButton label="View" onClick={() => setViewing(row)}><Eye className="size-4" /></ActionButton>
+                        <ActionButton label="Edit" onClick={() => openEdit(row)}><Pencil className="size-4" /></ActionButton>
+                        <ActionButton
+                            label="Schedule for Today"
+                            onClick={() => onSchedulePrayer(row.id, new Date().toISOString().slice(0, 10))}
+                            className="text-success hover:bg-success/10"
+                        >
+                            <CheckSquare className="size-4" />
+                        </ActionButton>
+                        <ActionButton
+                            label="Schedule Date"
+                            onClick={() => {
+                                setScheduling(row)
+                                setScheduledFor(new Date().toISOString().slice(0, 10))
+                            }}
+                            className="text-info hover:bg-info/10"
+                        >
+                            <Calendar className="size-4" />
+                        </ActionButton>
+                        <ActionButton
+                            label="Delete"
+                            onClick={() => setDeleting(row)}
+                            className="text-destructive hover:bg-destructive/10"
+                        >
+                            <Trash2 className="size-4" />
+                        </ActionButton>
                     </div>
                 ),
             },
@@ -159,18 +426,192 @@ export function PrayerManagementUI({
     return (
         <div className="flex w-full max-w-full flex-col gap-4">
             <div className="flex flex-col gap-4 border-b border-border/50 pb-4 lg:flex-row lg:items-center lg:justify-between">
-                <PageHeader title="Daily Prayers" description="Manage the prayer library and scheduled daily overrides." />
+                <PageHeader
+                    title="Daily Prayers"
+                    description="Manage today's active devotion, daily prayer library, and scheduled overrides."
+                />
                 <div className="flex flex-wrap items-center gap-3">
-                    <SearchInput value={searchQuery} onValueChange={onSearchChange} placeholder="Search prayers..." className="w-full sm:w-64" />
-                    <Button onClick={openCreate}><Plus className="mr-2 size-4" />Add prayer</Button>
+                    <SearchInput
+                        value={searchQuery}
+                        onValueChange={onSearchChange}
+                        placeholder="Search prayers..."
+                        className="w-full sm:w-64"
+                    />
+                    <Button onClick={openCreate} className="gap-2 bg-[#53624D] hover:bg-[#43503e] text-white">
+                        <Plus className="size-4" /> Add prayer
+                    </Button>
                 </div>
             </div>
 
-            <Tabs defaultValue="library" className="w-full">
-                <TabsList variant="line" className="mb-3 w-full justify-start border-b border-border/50">
-                    <TabsTrigger value="library" className="flex-none px-4">Prayer library</TabsTrigger>
-                    <TabsTrigger value="schedules" className="flex-none px-4">Schedules <span className="ml-1 rounded-full bg-primary/10 px-2 py-0.5 text-xs text-primary">{schedules.length}</span></TabsTrigger>
+            <Tabs
+                value={activeTab}
+                onValueChange={(val) => onTabChange?.(val as 'today' | 'library' | 'schedules')}
+                className="w-full"
+            >
+                <TabsList variant="line" className="mb-4 w-full justify-start border-b border-border/50">
+                    <TabsTrigger value="today" className="flex-none px-4 gap-2">
+                        Today's prayer
+                        <span className="inline-flex items-center rounded-full bg-emerald-500/10 px-2 py-0.5 text-[11px] font-semibold text-emerald-600">
+                            Live
+                        </span>
+                    </TabsTrigger>
+                    <TabsTrigger value="library" className="flex-none px-4">
+                        Prayer library
+                    </TabsTrigger>
+                    <TabsTrigger value="schedules" className="flex-none px-4 gap-1.5">
+                        Schedules
+                        <span className="rounded-full bg-primary/10 px-2 py-0.5 text-xs text-primary font-medium">
+                            {schedules.length}
+                        </span>
+                    </TabsTrigger>
                 </TabsList>
+
+                {/* ── Tab 1: Today's Prayer ── */}
+                <TabsContent value="today" className="space-y-6">
+                    {todayLoading ? (
+                        <div className="space-y-4">
+                            <div className="h-28 rounded-xl bg-muted/60 animate-pulse border border-border/50" />
+                            <div className="grid gap-4 md:grid-cols-2">
+                                <div className="h-44 rounded-xl bg-muted/60 animate-pulse border border-border/50" />
+                                <div className="h-44 rounded-xl bg-muted/60 animate-pulse border border-border/50" />
+                            </div>
+                        </div>
+                    ) : todayPrayer ? (
+                        <div className="space-y-6">
+                            {/* Today's Devotion Hero Card */}
+                            <div className="relative overflow-hidden rounded-2xl border border-border/70 bg-card p-6 shadow-sm">
+                                <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between border-b border-border/50 pb-4">
+                                    <div className="space-y-1">
+                                        <div className="flex items-center gap-2">
+                                            <span className="relative flex size-2">
+                                                <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-emerald-400 opacity-75" />
+                                                <span className="relative inline-flex rounded-full size-2 bg-emerald-500" />
+                                            </span>
+                                            <span className="text-xs font-semibold text-emerald-600 uppercase tracking-wider">
+                                                Active on Mobile App Today
+                                            </span>
+                                        </div>
+                                        <h3 className="text-xl font-bold text-foreground">
+                                            {new Date(`${todayPrayer.date}T00:00:00`).toLocaleDateString(undefined, {
+                                                weekday: 'long',
+                                                year: 'numeric',
+                                                month: 'long',
+                                                day: 'numeric',
+                                            })}
+                                        </h3>
+                                    </div>
+
+                                    <div className="flex flex-wrap items-center gap-2">
+                                        <Button
+                                            variant="outline"
+                                            size="sm"
+                                            onClick={handleCopyTodayDevotion}
+                                            className="gap-1.5 cursor-pointer"
+                                        >
+                                            {copied ? <Check className="size-3.5 text-emerald-600" /> : <Copy className="size-3.5" />}
+                                            {copied ? 'Copied' : 'Copy devotion'}
+                                        </Button>
+                                        <Button
+                                            variant="outline"
+                                            size="sm"
+                                            onClick={handleEditToday}
+                                            className="gap-1.5 cursor-pointer"
+                                        >
+                                            <Pencil className="size-3.5" /> Edit today's prayer
+                                        </Button>
+                                    </div>
+                                </div>
+
+                                {/* Scripture Verse Hero */}
+                                <div className="my-5 rounded-xl border border-primary/20 bg-primary/5 p-5">
+                                    <div className="flex items-start gap-3">
+                                        <div className="rounded-xl bg-primary/10 p-2.5 text-primary shrink-0">
+                                            <Quote className="size-5" />
+                                        </div>
+                                        <div className="space-y-2 flex-1">
+                                            <div className="flex items-center justify-between">
+                                                <span className="text-xs font-semibold uppercase tracking-wider text-primary">
+                                                    Scripture Verse
+                                                </span>
+                                                <Badge className="bg-primary/15 text-primary border-primary/30 text-xs font-semibold">
+                                                    {todayPrayer.reference}
+                                                </Badge>
+                                            </div>
+                                            <p className="text-lg font-medium leading-relaxed text-foreground italic">
+                                                “{todayPrayer.verse}”
+                                            </p>
+                                        </div>
+                                    </div>
+                                </div>
+
+                                {/* 2-Column: Guided Prayer & Daily Reflection */}
+                                <div className="grid gap-4 md:grid-cols-2">
+                                    <div className="rounded-xl border border-border/70 bg-muted/20 p-5 space-y-2">
+                                        <div className="flex items-center gap-2 text-foreground font-semibold">
+                                            <HandHeart className="size-4 text-primary" />
+                                            <h4>Guided Prayer</h4>
+                                        </div>
+                                        <p className="text-sm leading-relaxed text-muted-foreground whitespace-pre-line">
+                                            {todayPrayer.prayer}
+                                        </p>
+                                    </div>
+
+                                    <div className="rounded-xl border border-border/70 bg-muted/20 p-5 space-y-2">
+                                        <div className="flex items-center gap-2 text-foreground font-semibold">
+                                            <BookOpen className="size-4 text-primary" />
+                                            <h4>Daily Reflection</h4>
+                                        </div>
+                                        <p className="text-sm leading-relaxed text-muted-foreground whitespace-pre-line">
+                                            {todayPrayer.reflection}
+                                        </p>
+                                    </div>
+                                </div>
+
+                                {/* Practical Faith Step (Optional) */}
+                                <div className="mt-4 rounded-xl border border-border/70 bg-muted/15 p-5 space-y-2">
+                                    <div className="flex items-center justify-between">
+                                        <div className="flex items-center gap-2 text-foreground font-semibold">
+                                            <CheckSquare className="size-4 text-primary" />
+                                            <h4>Practical Faith Step (Optional)</h4>
+                                        </div>
+                                        {!todayPrayer.practice && (
+                                            <Button
+                                                variant="ghost"
+                                                size="sm"
+                                                onClick={handleEditToday}
+                                                className="h-7 text-xs text-primary hover:text-primary hover:bg-primary/10 gap-1 cursor-pointer"
+                                            >
+                                                <Plus className="size-3" /> Add step
+                                            </Button>
+                                        )}
+                                    </div>
+                                    {todayPrayer.practice ? (
+                                        <p className="text-sm text-muted-foreground leading-relaxed whitespace-pre-line">
+                                            {todayPrayer.practice}
+                                        </p>
+                                    ) : (
+                                        <p className="text-xs text-muted-foreground/60 italic">
+                                            No practical faith step configured for today's prayer yet. Click &quot;Add step&quot; to configure one.
+                                        </p>
+                                    )}
+                                </div>
+                            </div>
+                        </div>
+                    ) : (
+                        <div className="flex flex-col items-center justify-center gap-3 py-16 text-center border border-dashed rounded-xl">
+                            <HandHeart className="size-8 text-muted-foreground" />
+                            <h4 className="font-semibold text-foreground">No prayer scheduled for today</h4>
+                            <p className="text-sm text-muted-foreground max-w-sm">
+                                Select a prayer from the prayer library to schedule it as today's active devotion.
+                            </p>
+                            <Button variant="outline" onClick={() => onTabChange?.('library')}>
+                                Browse Prayer Library
+                            </Button>
+                        </div>
+                    )}
+                </TabsContent>
+
+                {/* ── Tab 2: Prayer Library ── */}
                 <TabsContent value="library">
                     <DataTable
                         columns={columns}
@@ -184,11 +625,38 @@ export function PrayerManagementUI({
                         onReset={onResetSearch}
                     />
                 </TabsContent>
-                <TabsContent value="schedules">
-                    <DataTable columns={scheduleColumns} data={schedules} total={schedules.length} page={1} limit={schedules.length || 1} noun="scheduled prayers" emptyIcon={<Calendar className="size-6" />} />
+
+                {/* ── Tab 3: Schedules ── */}
+                <TabsContent value="schedules" className="space-y-4">
+                    <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between rounded-xl border border-border/60 bg-muted/20 p-4">
+                        <div className="space-y-0.5">
+                            <h3 className="text-sm font-semibold text-foreground">Scheduled Overrides ({schedules.length})</h3>
+                            <p className="text-xs text-muted-foreground">
+                                Specific date overrides that take precedence over the serial daily rotation for all community members.
+                            </p>
+                        </div>
+                        <Button
+                            onClick={() => setCreateScheduleOpen(true)}
+                            className="gap-2 bg-[#53624D] hover:bg-[#43503e] text-white shrink-0"
+                            size="sm"
+                        >
+                            <CalendarPlus className="size-4" /> Schedule prayer
+                        </Button>
+                    </div>
+
+                    <DataTable
+                        columns={scheduleColumns}
+                        data={schedules}
+                        total={schedules.length}
+                        page={1}
+                        limit={schedules.length || 1}
+                        noun="scheduled prayers"
+                        emptyIcon={<Calendar className="size-6" />}
+                    />
                 </TabsContent>
             </Tabs>
 
+            {/* Create / Edit Dialog */}
             <PrayerFormDialog
                 open={formOpen}
                 editing={editing}
@@ -199,79 +667,185 @@ export function PrayerManagementUI({
                 onOpenChange={setFormOpen}
                 onChange={setForm}
                 onLanguageChange={(language) => setActiveLanguage(language)}
-                onLanguageFormChange={(language, nextForm) => setLanguageForms((previous) => ({ ...previous, [language]: nextForm }))}
+                onLanguageFormChange={(language, nextForm) =>
+                    setLanguageForms((previous) => ({ ...previous, [language]: nextForm }))
+                }
                 onSubmit={submitForm}
             />
 
+            {/* View Full Prayer Dialog */}
             <Dialog open={viewing !== null} onOpenChange={(open) => !open && setViewing(null)}>
-                <DialogContent className="sm:max-w-2xl">
-                    {viewing && <>
-                        <DialogHeader className="border-b border-dialog-border pb-4">
-                            <div className="flex items-start gap-3 pr-6">
-                                <div className="rounded-xl bg-primary/10 p-2.5 text-primary"><Quote className="size-5" /></div>
-                                <div className="min-w-0 space-y-1">
-                                    <DialogTitle className="text-xl">{viewing.reference}</DialogTitle>
-                                    <DialogDescription>Prayer #{viewing.id} · Created {new Date(viewing.createdAt).toLocaleDateString()} · Updated {new Date(viewing.updatedAt).toLocaleDateString()}</DialogDescription>
+                <DialogContent className="sm:max-w-2xl max-h-[85vh] overflow-y-auto">
+                    {viewing && (
+                        <>
+                            <DialogHeader className="border-b border-border/50 pb-4">
+                                <div className="flex items-start gap-3 pr-6">
+                                    <div className="rounded-xl bg-primary/10 p-2.5 text-primary">
+                                        <Quote className="size-5" />
+                                    </div>
+                                    <div className="min-w-0 space-y-1">
+                                        <DialogTitle className="text-xl">{viewing.reference}</DialogTitle>
+                                        <DialogDescription>
+                                            Prayer #{viewing.id} · Created {new Date(viewing.createdAt).toLocaleDateString()}
+                                        </DialogDescription>
+                                    </div>
                                 </div>
+                            </DialogHeader>
+                            <div className="space-y-4 py-2">
+                                <section className="rounded-xl border border-primary/20 bg-primary/5 p-5">
+                                    <p className="text-lg font-medium leading-relaxed text-foreground italic">“{viewing.verse}”</p>
+                                </section>
+                                <section className="space-y-1.5 rounded-xl border border-border/60 bg-muted/20 p-4">
+                                    <div className="flex items-center gap-2 text-foreground font-semibold text-sm">
+                                        <BookOpen className="size-4 text-primary" />
+                                        <h4>Daily Reflection</h4>
+                                    </div>
+                                    <p className="text-sm leading-relaxed text-muted-foreground whitespace-pre-line">{viewing.reflection}</p>
+                                </section>
+                                <section className="space-y-1.5 rounded-xl border border-border/60 bg-muted/20 p-4">
+                                    <div className="flex items-center gap-2 text-foreground font-semibold text-sm">
+                                        <HandHeart className="size-4 text-primary" />
+                                        <h4>Guided Prayer</h4>
+                                    </div>
+                                    <p className="text-sm leading-relaxed text-muted-foreground whitespace-pre-line">{viewing.prayer}</p>
+                                </section>
+                                <section className="space-y-1.5 rounded-xl border border-border/60 bg-muted/20 p-4">
+                                    <div className="flex items-center gap-2 text-foreground font-semibold text-sm">
+                                        <CheckSquare className="size-4 text-primary" />
+                                        <h4>Practical Faith Step (Optional)</h4>
+                                    </div>
+                                    {viewing.practice ? (
+                                        <p className="text-sm leading-relaxed text-muted-foreground whitespace-pre-line">{viewing.practice}</p>
+                                    ) : (
+                                        <p className="text-xs text-muted-foreground/60 italic">No practical faith step specified for this prayer.</p>
+                                    )}
+                                </section>
                             </div>
-                        </DialogHeader>
-                        <div className="space-y-5 py-1">
-                            <section className="rounded-xl border border-primary/20 bg-primary/5 p-5">
-                                <p className="text-lg font-medium leading-relaxed text-foreground">“{viewing.verse}”</p>
-                                <p className="mt-3 text-sm font-semibold text-primary">{viewing.reference}</p>
-                            </section>
-                            <ContentBlock label="Reflection" value={viewing.reflection} />
-                            <ContentBlock label="Prayer" value={viewing.prayer} />
-                            <ContentBlock label="Practice" value={viewing.practice ?? 'No practice specified'} />
-                        </div>
-                        <DialogFooter className="border-dialog-border">
-                            <Button variant="outline" onClick={() => setViewing(null)}>Close</Button>
-                            <Button onClick={() => { openEdit(viewing); setViewing(null) }}><Pencil className="mr-2 size-4" />Edit prayer</Button>
-                        </DialogFooter>
-                    </>}
+                            <DialogFooter className="border-t border-border/50 pt-3">
+                                <Button variant="outline" onClick={() => setViewing(null)}>Close</Button>
+                                <Button
+                                    onClick={() => {
+                                        const toEdit = viewing
+                                        setViewing(null)
+                                        openEdit(toEdit)
+                                    }}
+                                    className="gap-1.5 bg-[#53624D] hover:bg-[#43503e] text-white"
+                                >
+                                    <Pencil className="size-3.5" /> Edit prayer
+                                </Button>
+                            </DialogFooter>
+                        </>
+                    )}
                 </DialogContent>
             </Dialog>
 
+            {/* Schedule Prayer Dialog */}
             <Dialog open={scheduling !== null} onOpenChange={(open) => !open && setScheduling(null)}>
-                <DialogContent>
+                <DialogContent className="sm:max-w-md">
                     <DialogHeader>
-                        <DialogTitle>Schedule prayer</DialogTitle>
-                        <DialogDescription>This date uses the selected prayer instead of the serial rotation.</DialogDescription>
+                        <DialogTitle>Schedule prayer override</DialogTitle>
+                        <DialogDescription>
+                            Override the prayer shown on a specific date for all community members.
+                        </DialogDescription>
                     </DialogHeader>
-                    <Input type="date" value={scheduledFor} onChange={(event) => setScheduledFor(event.target.value)} />
+                    {scheduling && (
+                        <div className="space-y-4 py-2">
+                            <div className="rounded-lg border border-border/70 p-3 bg-muted/20">
+                                <p className="font-semibold text-sm text-foreground">{scheduling.reference}</p>
+                                <p className="line-clamp-2 text-xs text-muted-foreground mt-1">“{scheduling.verse}”</p>
+                            </div>
+                            <div className="space-y-1.5">
+                                <label className="text-xs font-semibold text-muted-foreground uppercase">Scheduled date</label>
+                                <Input
+                                    type="date"
+                                    value={scheduledFor}
+                                    onChange={(event) => setScheduledFor(event.target.value)}
+                                />
+                            </div>
+                        </div>
+                    )}
                     <DialogFooter>
                         <Button variant="outline" onClick={() => setScheduling(null)}>Cancel</Button>
-                        <Button disabled={!scheduledFor || saving} onClick={async () => {
-                            if (!scheduling) return
-                            setSaving(true)
-                            try { await onSchedulePrayer(scheduling.id, scheduledFor); setScheduling(null) } finally { setSaving(false) }
-                        }}>Schedule</Button>
+                        <Button
+                            onClick={async () => {
+                                if (!scheduling) return
+                                await onSchedulePrayer(scheduling.id, scheduledFor)
+                                setScheduling(null)
+                            }}
+                            className="bg-[#53624D] hover:bg-[#43503e] text-white"
+                        >
+                            Save schedule
+                        </Button>
                     </DialogFooter>
                 </DialogContent>
             </Dialog>
 
+            {/* Trash Confirmation */}
             <TrashConfirm
                 open={deleting !== null}
                 onOpenChange={(open) => !open && setDeleting(null)}
-                name={deleting?.reference ?? 'this prayer'}
-                onConfirm={async () => {
-                    if (deleting) await onDeletePrayer(deleting.id)
-                    setDeleting(null)
+                name={deleting?.reference || 'this prayer'}
+                onConfirm={() => {
+                    if (deleting) {
+                        onDeletePrayer(deleting.id)
+                        setDeleting(null)
+                    }
                 }}
+            />
+
+            {/* Trash Confirmation for Schedule Override */}
+            <TrashConfirm
+                open={deletingSchedule !== null}
+                onOpenChange={(open) => !open && setDeletingSchedule(null)}
+                title="Remove Schedule Override?"
+                description="Are you sure you want to remove the schedule override for"
+                name={
+                    deletingSchedule
+                        ? `${formatScheduleDate(deletingSchedule.scheduledFor)} (${deletingSchedule.prayer.reference})`
+                        : 'this schedule override'
+                }
+                onConfirm={() => {
+                    if (deletingSchedule) {
+                        onDeleteSchedule?.(deletingSchedule.id)
+                        setDeletingSchedule(null)
+                    }
+                }}
+            />
+
+            {/* Edit / Reschedule Dialog */}
+            <EditScheduleDialog
+                schedule={editingSchedule}
+                prayers={prayers}
+                saving={saving}
+                onOpenChange={(open) => !open && setEditingSchedule(null)}
+                onSave={handleUpdateSchedule}
+            />
+
+            {/* Create Schedule Dialog */}
+            <CreateScheduleDialog
+                open={createScheduleOpen}
+                prayers={prayers}
+                saving={saving}
+                onOpenChange={setCreateScheduleOpen}
+                onSchedule={handleCreateSchedule}
             />
         </div>
     )
 }
 
-function ActionButton({ label, onClick, children, className = 'text-primary hover:bg-primary/10' }: { label: string; onClick: () => void; children: React.ReactNode; className?: string }) {
-    return <button type="button" title={label} aria-label={label} onClick={onClick} className={`rounded-full p-2 transition-colors ${className}`}>{children && <span className="size-4 [&>svg]:size-4">{children}</span>}</button>
-}
-
-function ContentBlock({ label, value }: { label: string; value: string }) {
-    return <div className="space-y-1"><h4 className="font-semibold text-foreground">{label}</h4><p className="whitespace-pre-wrap rounded-lg border border-dialog-border bg-dialog-bg/60 p-3 text-muted-foreground">{value}</p></div>
-}
-
-function PrayerFormDialog({ open, editing, form, languageForms, activeLanguage, saving, onOpenChange, onChange, onLanguageChange, onLanguageFormChange, onSubmit }: {
+function PrayerFormDialog({
+    open,
+    editing,
+    form,
+    languageForms,
+    activeLanguage,
+    saving,
+    onOpenChange,
+    onChange,
+    onLanguageChange,
+    onLanguageFormChange,
+    onSubmit,
+}: {
     open: boolean
     editing: Prayer | null
     form: FormState
@@ -284,36 +858,329 @@ function PrayerFormDialog({ open, editing, form, languageForms, activeLanguage, 
     onLanguageFormChange: (language: ContentLanguage, form: FormState) => void
     onSubmit: () => Promise<void>
 }) {
-    const renderFields = (values: FormState, update: (form: FormState) => void) => {
-        const field = (key: keyof FormState, label: string, multiline = false) => multiline
-            ? <Textarea value={values[key] ?? ''} onChange={(event) => update({ ...values, [key]: event.target.value })} placeholder={label} aria-label={label} />
-            : <Input value={values[key] ?? ''} onChange={(event) => update({ ...values, [key]: event.target.value })} placeholder={label} aria-label={label} />
-
-        return <div className="grid gap-3">
-            <label className="grid gap-1.5 text-sm font-medium">Verse{field('verse', 'Enter verse')}</label>
-            <label className="grid gap-1.5 text-sm font-medium">Reference{field('reference', 'Enter scripture reference')}</label>
-            <label className="grid gap-1.5 text-sm font-medium">Reflection{field('reflection', 'Enter reflection', true)}</label>
-            <label className="grid gap-1.5 text-sm font-medium">Prayer{field('prayer', 'Enter prayer', true)}</label>
-            <label className="grid gap-1.5 text-sm font-medium">Practice{field('practice', 'Optional practice', true)}</label>
-        </div>
+    const activeForm = editing ? form : languageForms[activeLanguage]
+    const updateField = (field: keyof FormState, value: string) => {
+        if (editing) {
+            onChange({ ...form, [field]: value })
+            return
+        }
+        onLanguageFormChange(activeLanguage, {
+            ...languageForms[activeLanguage],
+            [field]: value,
+        })
     }
 
-    return <Dialog open={open} onOpenChange={onOpenChange}>
-        <DialogContent className="sm:max-w-2xl max-h-[90vh] overflow-y-auto">
-            <DialogHeader>
-                <DialogTitle>{editing ? 'Edit prayer' : 'Add prayer'}</DialogTitle>
-                <DialogDescription>{editing ? 'Update the selected daily prayer.' : 'Translation saving is not connected yet. Create submits the selected language only.'}</DialogDescription>
-            </DialogHeader>
-            {editing ? renderFields(form, onChange) : <Tabs value={activeLanguage} onValueChange={(value) => onLanguageChange(value as ContentLanguage)} className="gap-3">
-                <TabsList className="grid h-10 w-full grid-cols-3">
-                    {CONTENT_LANGUAGES.map((language) => <TabsTrigger key={language.value} value={language.value}>{language.label}</TabsTrigger>)}
-                </TabsList>
-                {CONTENT_LANGUAGES.map((language) => <TabsContent key={language.value} value={language.value}>{renderFields(languageForms[language.value], (nextForm) => onLanguageFormChange(language.value, nextForm))}</TabsContent>)}
-            </Tabs>}
-            <DialogFooter>
-                <Button variant="outline" onClick={() => onOpenChange(false)}>Cancel</Button>
-                <Button disabled={saving || !(editing ? form : languageForms[activeLanguage]).verse.trim() || !(editing ? form : languageForms[activeLanguage]).reference.trim() || !(editing ? form : languageForms[activeLanguage]).prayer.trim()} onClick={onSubmit}>{editing ? 'Save changes' : 'Create prayer'}</Button>
-            </DialogFooter>
-        </DialogContent>
-    </Dialog>
+    return (
+        <Dialog open={open} onOpenChange={onOpenChange}>
+            <DialogContent className="sm:max-w-2xl">
+                <DialogHeader>
+                    <DialogTitle>{editing ? 'Edit Daily Prayer' : 'Create Daily Prayer'}</DialogTitle>
+                    <DialogDescription>
+                        {editing
+                            ? `Update devotional content for ${editing.reference}.`
+                            : 'Add devotional content for the Mercy Daily community.'}
+                    </DialogDescription>
+                </DialogHeader>
+
+                {!editing && (
+                    <div className="flex gap-2 border-b border-border/50 pb-2">
+                        {CONTENT_LANGUAGES.map((lang) => (
+                            <Button
+                                key={lang.value}
+                                type="button"
+                                variant={activeLanguage === lang.value ? 'default' : 'ghost'}
+                                size="sm"
+                                onClick={() => onLanguageChange(lang.value)}
+                                className={activeLanguage === lang.value ? 'bg-[#53624D] hover:bg-[#43503e] text-white' : ''}
+                            >
+                                {lang.label}
+                            </Button>
+                        ))}
+                    </div>
+                )}
+
+                <div className="space-y-4 py-2 max-h-[60vh] overflow-y-auto pr-1">
+                    <div className="grid gap-4 sm:grid-cols-2">
+                        <div className="space-y-1.5">
+                            <label className="text-xs font-semibold uppercase text-muted-foreground">Scripture Reference *</label>
+                            <Input
+                                value={activeForm.reference}
+                                onChange={(e) => updateField('reference', e.target.value)}
+                                placeholder="e.g. John 3:16"
+                            />
+                        </div>
+                        <div className="space-y-1.5">
+                            <label className="text-xs font-semibold uppercase text-muted-foreground">Scripture Verse *</label>
+                            <Input
+                                value={activeForm.verse}
+                                onChange={(e) => updateField('verse', e.target.value)}
+                                placeholder="e.g. For God so loved the world..."
+                            />
+                        </div>
+                    </div>
+
+                    <div className="space-y-1.5">
+                        <label className="text-xs font-semibold uppercase text-muted-foreground">Daily Reflection *</label>
+                        <Textarea
+                            value={activeForm.reflection}
+                            onChange={(e) => updateField('reflection', e.target.value)}
+                            placeholder="Write an inspirational reflection on the verse..."
+                            rows={4}
+                        />
+                    </div>
+
+                    <div className="space-y-1.5">
+                        <label className="text-xs font-semibold uppercase text-muted-foreground">Guided Prayer *</label>
+                        <Textarea
+                            value={activeForm.prayer}
+                            onChange={(e) => updateField('prayer', e.target.value)}
+                            placeholder="Write a guided prayer..."
+                            rows={4}
+                        />
+                    </div>
+
+                    <div className="space-y-1.5">
+                        <label className="text-xs font-semibold uppercase text-muted-foreground">Practical Faith Step (Optional)</label>
+                        <Textarea
+                            value={activeForm.practice ?? ''}
+                            onChange={(e) => updateField('practice', e.target.value)}
+                            placeholder="A tangible step of faith for the believer today..."
+                            rows={3}
+                        />
+                    </div>
+                </div>
+
+                <DialogFooter>
+                    <Button variant="outline" onClick={() => onOpenChange(false)}>Cancel</Button>
+                    <Button
+                        onClick={onSubmit}
+                        disabled={saving || !activeForm.verse.trim() || !activeForm.reference.trim() || !activeForm.prayer.trim()}
+                        className="bg-[#53624D] hover:bg-[#43503e] text-white"
+                    >
+                        {saving ? 'Saving...' : editing ? 'Save Changes' : 'Create Prayer'}
+                    </Button>
+                </DialogFooter>
+            </DialogContent>
+        </Dialog>
+    )
+}
+
+function PrayerSelector({
+    prayers,
+    selectedId,
+    onSelect,
+}: {
+    prayers: Prayer[]
+    selectedId: number | null
+    onSelect: (id: number) => void
+}) {
+    const [search, setSearch] = useState('')
+    const filtered = useMemo(() => {
+        const query = search.trim().toLowerCase()
+        if (!query) return prayers
+        return prayers.filter(
+            (p) =>
+                p.reference.toLowerCase().includes(query) ||
+                p.verse.toLowerCase().includes(query) ||
+                p.reflection.toLowerCase().includes(query),
+        )
+    }, [prayers, search])
+
+    return (
+        <div className="space-y-2">
+            <div className="relative">
+                <Search className="absolute left-2.5 top-2.5 size-4 text-muted-foreground pointer-events-none" />
+                <Input
+                    value={search}
+                    onChange={(e) => setSearch(e.target.value)}
+                    placeholder="Search prayer by reference or verse..."
+                    className="pl-8 text-xs h-9"
+                />
+            </div>
+            <div className="max-h-52 overflow-y-auto space-y-1.5 rounded-lg border border-border/60 p-1.5 bg-background">
+                {filtered.length === 0 ? (
+                    <div className="py-6 text-center text-xs text-muted-foreground">
+                        No prayers matching "{search}"
+                    </div>
+                ) : (
+                    filtered.map((prayer) => {
+                        const isSelected = prayer.id === selectedId
+                        return (
+                            <button
+                                key={prayer.id}
+                                type="button"
+                                onClick={() => onSelect(prayer.id)}
+                                className={`w-full text-left p-2.5 rounded-md transition-colors cursor-pointer text-xs border ${
+                                    isSelected
+                                        ? 'border-[#53624D] bg-[#53624D]/10 text-foreground font-medium'
+                                        : 'border-transparent hover:bg-muted/60 text-muted-foreground'
+                                }`}
+                            >
+                                <div className="flex items-center justify-between gap-2">
+                                    <span className="font-semibold text-foreground">{prayer.reference}</span>
+                                    {isSelected && <Check className="size-3.5 text-[#53624D]" />}
+                                </div>
+                                <p className="line-clamp-1 italic mt-0.5 opacity-90">“{prayer.verse}”</p>
+                            </button>
+                        )
+                    })
+                )}
+            </div>
+        </div>
+    )
+}
+
+function EditScheduleDialog({
+    schedule,
+    prayers,
+    saving,
+    onOpenChange,
+    onSave,
+}: {
+    schedule: PrayerSchedule | null
+    prayers: Prayer[]
+    saving: boolean
+    onOpenChange: (open: boolean) => void
+    onSave: (date: string, prayerId: number) => Promise<void>
+}) {
+    const [date, setDate] = useState('')
+    const [selectedPrayerId, setSelectedPrayerId] = useState<number | null>(null)
+
+    useEffect(() => {
+        if (schedule) {
+            setDate(schedule.scheduledFor.slice(0, 10))
+            setSelectedPrayerId(schedule.prayer.id)
+        }
+    }, [schedule])
+
+    if (!schedule) return null
+
+    const currentAssigned = prayers.find((p) => p.id === selectedPrayerId) || schedule.prayer
+
+    return (
+        <Dialog open={schedule !== null} onOpenChange={onOpenChange}>
+            <DialogContent className="sm:max-w-md">
+                <DialogHeader>
+                    <DialogTitle>Edit Schedule Override</DialogTitle>
+                    <DialogDescription>
+                        Update the assigned date or choose a different prayer for this date override.
+                    </DialogDescription>
+                </DialogHeader>
+
+                <div className="space-y-4 py-2">
+                    <div className="space-y-1.5">
+                        <label className="text-xs font-semibold text-muted-foreground uppercase">Scheduled Date</label>
+                        <Input
+                            type="date"
+                            value={date}
+                            onChange={(e) => setDate(e.target.value)}
+                        />
+                    </div>
+
+                    <div className="space-y-1.5">
+                        <label className="text-xs font-semibold text-muted-foreground uppercase">Currently Selected</label>
+                        <div className="rounded-lg border border-border/80 bg-muted/30 p-2.5 text-xs">
+                            <p className="font-semibold text-foreground">{currentAssigned.reference}</p>
+                            <p className="line-clamp-2 italic text-muted-foreground mt-0.5">“{currentAssigned.verse}”</p>
+                        </div>
+                    </div>
+
+                    <div className="space-y-1.5">
+                        <label className="text-xs font-semibold text-muted-foreground uppercase">Change Prayer</label>
+                        <PrayerSelector
+                            prayers={prayers}
+                            selectedId={selectedPrayerId}
+                            onSelect={setSelectedPrayerId}
+                        />
+                    </div>
+                </div>
+
+                <DialogFooter>
+                    <Button variant="outline" onClick={() => onOpenChange(false)}>Cancel</Button>
+                    <Button
+                        onClick={() => {
+                            if (date && selectedPrayerId) {
+                                onSave(date, selectedPrayerId)
+                            }
+                        }}
+                        disabled={saving || !date || !selectedPrayerId}
+                        className="bg-[#53624D] hover:bg-[#43503e] text-white"
+                    >
+                        {saving ? 'Saving...' : 'Save Changes'}
+                    </Button>
+                </DialogFooter>
+            </DialogContent>
+        </Dialog>
+    )
+}
+
+function CreateScheduleDialog({
+    open,
+    prayers,
+    saving,
+    onOpenChange,
+    onSchedule,
+}: {
+    open: boolean
+    prayers: Prayer[]
+    saving: boolean
+    onOpenChange: (open: boolean) => void
+    onSchedule: (prayerId: number, date: string) => Promise<void>
+}) {
+    const [date, setDate] = useState(new Date().toISOString().slice(0, 10))
+    const [selectedPrayerId, setSelectedPrayerId] = useState<number | null>(prayers[0]?.id ?? null)
+
+    useEffect(() => {
+        if (open && prayers.length > 0 && !selectedPrayerId) {
+            setSelectedPrayerId(prayers[0].id)
+        }
+    }, [open, prayers, selectedPrayerId])
+
+    return (
+        <Dialog open={open} onOpenChange={onOpenChange}>
+            <DialogContent className="sm:max-w-md">
+                <DialogHeader>
+                    <DialogTitle>Schedule a Daily Prayer</DialogTitle>
+                    <DialogDescription>
+                        Set a specific prayer to be featured on a selected calendar date for all users.
+                    </DialogDescription>
+                </DialogHeader>
+
+                <div className="space-y-4 py-2">
+                    <div className="space-y-1.5">
+                        <label className="text-xs font-semibold text-muted-foreground uppercase">Target Date *</label>
+                        <Input
+                            type="date"
+                            value={date}
+                            onChange={(e) => setDate(e.target.value)}
+                        />
+                    </div>
+
+                    <div className="space-y-1.5">
+                        <label className="text-xs font-semibold text-muted-foreground uppercase">Select Prayer from Library *</label>
+                        <PrayerSelector
+                            prayers={prayers}
+                            selectedId={selectedPrayerId}
+                            onSelect={setSelectedPrayerId}
+                        />
+                    </div>
+                </div>
+
+                <DialogFooter>
+                    <Button variant="outline" onClick={() => onOpenChange(false)}>Cancel</Button>
+                    <Button
+                        onClick={() => {
+                            if (date && selectedPrayerId) {
+                                onSchedule(selectedPrayerId, date)
+                            }
+                        }}
+                        disabled={saving || !date || !selectedPrayerId}
+                        className="bg-[#53624D] hover:bg-[#43503e] text-white"
+                    >
+                        {saving ? 'Scheduling...' : 'Schedule Prayer'}
+                    </Button>
+                </DialogFooter>
+            </DialogContent>
+        </Dialog>
+    )
 }
