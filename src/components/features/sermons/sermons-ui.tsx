@@ -10,7 +10,7 @@ import { Button } from '@/components/ui/button'
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from '@/components/ui/dialog'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
 import { Input } from '@/components/ui/input'
-import { Tabs, TabsList, TabsTrigger } from '@/components/ui/tabs'
+import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs'
 import { Textarea } from '@/components/ui/textarea'
 import { Eye, Pencil, Plus, ThumbsUp, Trash2, Upload, X, Youtube } from 'lucide-react'
 import { toast } from 'sonner'
@@ -44,6 +44,20 @@ type FormState = {
     status: SermonStatus
 }
 
+type ContentLanguage = 'en' | 'es' | 'pt'
+
+const CONTENT_LANGUAGES: { value: ContentLanguage; label: string }[] = [
+    { value: 'en', label: 'English' },
+    { value: 'es', label: 'Español' },
+    { value: 'pt', label: 'Português' },
+]
+
+const createEmptyLanguageForms = (): Record<ContentLanguage, FormState> => ({
+    en: { ...emptyForm },
+    es: { ...emptyForm },
+    pt: { ...emptyForm },
+})
+
 const emptyForm: FormState = {
     title: '',
     overview: '',
@@ -76,6 +90,8 @@ export function SermonsUI({
     const [formOpen, setFormOpen] = useState(false)
     const [editing, setEditing] = useState<Sermon | null>(null)
     const [form, setForm] = useState<FormState>(emptyForm)
+    const [languageForms, setLanguageForms] = useState<Record<ContentLanguage, FormState>>(createEmptyLanguageForms)
+    const [activeLanguage, setActiveLanguage] = useState<ContentLanguage>('en')
     const [viewing, setViewing] = useState<Sermon | null>(null)
     const [deleting, setDeleting] = useState<Sermon | null>(null)
     const [saving, setSaving] = useState(false)
@@ -83,11 +99,14 @@ export function SermonsUI({
     const openCreate = () => {
         setEditing(null)
         setForm(emptyForm)
+        setLanguageForms(createEmptyLanguageForms())
+        setActiveLanguage('en')
         setFormOpen(true)
     }
 
     const openEdit = (sermon: Sermon) => {
         setEditing(sermon)
+        setActiveLanguage('en')
         setForm({
             title: sermon.title,
             overview: sermon.overview ?? '',
@@ -99,15 +118,16 @@ export function SermonsUI({
     }
 
     const submitForm = async () => {
-        if (!form.title.trim() || !form.youtubeUrl.trim()) return
+        const values = editing ? form : languageForms[activeLanguage]
+        if (!values.title.trim() || !values.youtubeUrl.trim()) return
         setSaving(true)
         try {
             const input: SermonInput = {
-                title: form.title.trim(),
-                overview: form.overview.trim() || undefined,
-                thumbnailUrl: form.thumbnailUrl.trim() || undefined,
-                youtubeUrl: form.youtubeUrl.trim(),
-                status: form.status,
+                title: values.title.trim(),
+                overview: values.overview.trim() || undefined,
+                thumbnailUrl: values.thumbnailUrl.trim() || undefined,
+                youtubeUrl: values.youtubeUrl.trim(),
+                status: values.status,
             }
             if (editing) await onUpdateSermon(editing.id, input)
             else await onCreateSermon(input)
@@ -251,9 +271,13 @@ export function SermonsUI({
                 open={formOpen}
                 editing={editing}
                 form={form}
+                languageForms={languageForms}
+                activeLanguage={activeLanguage}
                 saving={saving}
                 onOpenChange={setFormOpen}
                 onChange={setForm}
+                onLanguageChange={(language) => setActiveLanguage(language)}
+                onLanguageFormChange={(language, nextForm) => setLanguageForms((previous) => ({ ...previous, [language]: nextForm }))}
                 onSubmit={submitForm}
             />
 
@@ -461,20 +485,62 @@ function SermonFormDialog({
     open,
     editing,
     form,
+    languageForms,
+    activeLanguage,
     saving,
     onOpenChange,
     onChange,
+    onLanguageChange,
+    onLanguageFormChange,
     onSubmit,
 }: {
     open: boolean
     editing: Sermon | null
     form: FormState
+    languageForms: Record<ContentLanguage, FormState>
+    activeLanguage: ContentLanguage
     saving: boolean
     onOpenChange: (open: boolean) => void
     onChange: (form: FormState) => void
+    onLanguageChange: (language: ContentLanguage) => void
+    onLanguageFormChange: (language: ContentLanguage, form: FormState) => void
     onSubmit: () => Promise<void>
 }) {
-    const set = (key: keyof FormState, value: string) => onChange({ ...form, [key]: value })
+    const renderFields = (values: FormState, update: (form: FormState) => void) => {
+        const set = (key: keyof FormState, value: string) => update({ ...values, [key]: value })
+
+        return (
+            <div className="grid gap-3">
+                <label className="grid gap-1.5 text-sm font-medium">
+                    Title
+                    <Input value={values.title} onChange={(event) => set('title', event.target.value)} placeholder="The Power of Stillness" aria-label="Title" />
+                </label>
+                <label className="grid gap-1.5 text-sm font-medium">
+                    Overview
+                    <Textarea value={values.overview} onChange={(event) => set('overview', event.target.value)} placeholder="What is this sermon about?" aria-label="Overview" />
+                </label>
+                <div className="grid gap-1.5 text-sm font-medium">
+                    <span>Thumbnail</span>
+                    <ThumbnailField value={values.thumbnailUrl} disabled={saving} onChange={(url) => set('thumbnailUrl', url)} />
+                </div>
+                <label className="grid gap-1.5 text-sm font-medium">
+                    YouTube link
+                    <Input value={values.youtubeUrl} onChange={(event) => set('youtubeUrl', event.target.value)} placeholder="https://www.youtube.com/watch?v=..." aria-label="YouTube link" />
+                </label>
+                <label className="grid gap-1.5 text-sm font-medium sm:max-w-xs">
+                    Status
+                    <Select value={values.status} onValueChange={(value) => set('status', value)}>
+                        <SelectTrigger aria-label="Status"><SelectValue /></SelectTrigger>
+                        <SelectContent>
+                            <SelectItem value="PUBLISHED">Published</SelectItem>
+                            <SelectItem value="DRAFT">Draft</SelectItem>
+                            <SelectItem value="ARCHIVED">Archived</SelectItem>
+                        </SelectContent>
+                    </Select>
+                </label>
+            </div>
+        )
+    }
 
     return (
         <Dialog open={open} onOpenChange={onOpenChange}>
@@ -486,57 +552,28 @@ function SermonFormDialog({
                         published.
                     </DialogDescription>
                 </DialogHeader>
-                <div className="grid gap-3">
-                    <label className="grid gap-1.5 text-sm font-medium">
-                        Title
-                        <Input
-                            value={form.title}
-                            onChange={(event) => set('title', event.target.value)}
-                            placeholder="The Power of Stillness"
-                            aria-label="Title"
-                        />
-                    </label>
-                    <label className="grid gap-1.5 text-sm font-medium">
-                        Overview
-                        <Textarea
-                            value={form.overview}
-                            onChange={(event) => set('overview', event.target.value)}
-                            placeholder="What is this sermon about?"
-                            aria-label="Overview"
-                        />
-                    </label>
-                    <div className="grid gap-1.5 text-sm font-medium">
-                        <span>Thumbnail</span>
-                        <ThumbnailField value={form.thumbnailUrl} disabled={saving} onChange={(url) => set('thumbnailUrl', url)} />
+                {editing ? (
+                    renderFields(form, onChange)
+                ) : (
+                    <div className="space-y-3">
+                        <p className="text-xs text-muted-foreground">Translation saving is not connected yet. Create submits the selected language only.</p>
+                        <Tabs value={activeLanguage} onValueChange={(value) => onLanguageChange(value as ContentLanguage)} className="gap-3">
+                            <TabsList className="grid h-10 w-full grid-cols-3">
+                                {CONTENT_LANGUAGES.map((language) => <TabsTrigger key={language.value} value={language.value}>{language.label}</TabsTrigger>)}
+                            </TabsList>
+                            {CONTENT_LANGUAGES.map((language) => (
+                                <TabsContent key={language.value} value={language.value}>
+                                    {renderFields(languageForms[language.value], (nextForm) => onLanguageFormChange(language.value, nextForm))}
+                                </TabsContent>
+                            ))}
+                        </Tabs>
                     </div>
-                    <label className="grid gap-1.5 text-sm font-medium">
-                        YouTube link
-                        <Input
-                            value={form.youtubeUrl}
-                            onChange={(event) => set('youtubeUrl', event.target.value)}
-                            placeholder="https://www.youtube.com/watch?v=..."
-                            aria-label="YouTube link"
-                        />
-                    </label>
-                    <label className="grid gap-1.5 text-sm font-medium sm:max-w-xs">
-                        Status
-                        <Select value={form.status} onValueChange={(value) => set('status', value)}>
-                            <SelectTrigger aria-label="Status">
-                                <SelectValue />
-                            </SelectTrigger>
-                            <SelectContent>
-                                <SelectItem value="PUBLISHED">Published</SelectItem>
-                                <SelectItem value="DRAFT">Draft</SelectItem>
-                                <SelectItem value="ARCHIVED">Archived</SelectItem>
-                            </SelectContent>
-                        </Select>
-                    </label>
-                </div>
+                )}
                 <DialogFooter>
                     <Button variant="outline" onClick={() => onOpenChange(false)}>
                         Cancel
                     </Button>
-                    <Button disabled={saving || !form.title.trim() || !form.youtubeUrl.trim()} onClick={onSubmit}>
+                    <Button disabled={saving || !(editing ? form : languageForms[activeLanguage]).title.trim() || !(editing ? form : languageForms[activeLanguage]).youtubeUrl.trim()} onClick={onSubmit}>
                         {editing ? 'Save changes' : 'Create sermon'}
                     </Button>
                 </DialogFooter>

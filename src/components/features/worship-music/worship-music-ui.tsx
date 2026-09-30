@@ -11,7 +11,7 @@ import { Textarea } from '@/components/ui/textarea'
 import { Badge } from '@/components/ui/badge'
 import { Switch } from '@/components/ui/switch'
 import { Label } from '@/components/ui/label'
-import { Tabs, TabsList, TabsTrigger } from '@/components/ui/tabs'
+import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs'
 import {
     Select,
     SelectContent,
@@ -71,6 +71,14 @@ export interface WorshipMusicUIProps {
     onSaveBanner: (banner: WorshipHeroBanner) => void
 }
 
+type ContentLanguage = 'en' | 'es' | 'pt'
+
+const CONTENT_LANGUAGES: { value: ContentLanguage; label: string }[] = [
+    { value: 'en', label: 'English' },
+    { value: 'es', label: 'Español' },
+    { value: 'pt', label: 'Português' },
+]
+
 type SongFormState = {
     title: string
     artist: string
@@ -103,6 +111,12 @@ const emptySongForm: SongFormState = {
     description: '',
 }
 
+const createEmptyLanguageForms = (): Record<ContentLanguage, SongFormState> => ({
+    en: { ...emptySongForm, language: 'English' },
+    es: { ...emptySongForm, language: 'Spanish' },
+    pt: { ...emptySongForm, language: 'Portuguese' },
+})
+
 export function WorshipMusicUI({
     songs,
     playlists,
@@ -123,7 +137,20 @@ export function WorshipMusicUI({
     // Modals
     const [songFormOpen, setSongFormOpen] = useState(false)
     const [editingSong, setEditingSong] = useState<WorshipSong | null>(null)
-    const [songForm, setSongForm] = useState<SongFormState>(emptySongForm)
+    const [editSongForm, setEditSongForm] = useState<SongFormState>(emptySongForm)
+    const [languageSongForms, setLanguageSongForms] = useState<Record<ContentLanguage, SongFormState>>(createEmptyLanguageForms)
+    const [activeSongLanguage, setActiveSongLanguage] = useState<ContentLanguage>('en')
+    const songForm = editingSong ? editSongForm : languageSongForms[activeSongLanguage]
+    const setSongForm = (next: SongFormState | ((previous: SongFormState) => SongFormState)) => {
+        if (editingSong) {
+            setEditSongForm((previous) => typeof next === 'function' ? next(previous) : next)
+        } else {
+            setLanguageSongForms((previous) => ({
+                ...previous,
+                [activeSongLanguage]: typeof next === 'function' ? next(previous[activeSongLanguage]) : next,
+            }))
+        }
+    }
     const [deletingSong, setDeletingSong] = useState<WorshipSong | null>(null)
 
     const [playlistFormOpen, setPlaylistFormOpen] = useState(false)
@@ -208,13 +235,16 @@ export function WorshipMusicUI({
 
     const openCreateSong = () => {
         setEditingSong(null)
-        setSongForm(emptySongForm)
+        setEditSongForm(emptySongForm)
+        setLanguageSongForms(createEmptyLanguageForms())
+        setActiveSongLanguage('en')
         setSongFormOpen(true)
     }
 
     const openEditSong = (song: WorshipSong) => {
         setEditingSong(song)
-        setSongForm({
+        setActiveSongLanguage('en')
+        setEditSongForm({
             title: song.title,
             artist: song.artist,
             category: song.category,
@@ -253,7 +283,7 @@ export function WorshipMusicUI({
             scheduledDate: songForm.scheduledDate ? `${songForm.scheduledDate}T00:00:00Z` : undefined,
             isFeatured: songForm.isFeatured,
             playsCount: editingSong ? editingSong.playsCount : 0,
-            language: songForm.language,
+            language: editingSong ? songForm.language : languageSongForms[activeSongLanguage].language,
             description: songForm.description,
             createdAt: editingSong ? editingSong.createdAt : new Date().toISOString(),
             updatedAt: new Date().toISOString(),
@@ -759,7 +789,16 @@ export function WorshipMusicUI({
                         </DialogDescription>
                     </DialogHeader>
 
-                    <div className="grid gap-4 py-2">
+                    <Tabs value={activeSongLanguage} onValueChange={(value) => setActiveSongLanguage(value as ContentLanguage)} className="gap-3">
+                        {!editingSong && (
+                            <div className="space-y-3">
+                                <p className="text-xs text-muted-foreground">Translation saving is not connected yet. Create submits the selected language only.</p>
+                                <TabsList className="grid h-10 w-full grid-cols-3">
+                                    {CONTENT_LANGUAGES.map((language) => <TabsTrigger key={language.value} value={language.value}>{language.label}</TabsTrigger>)}
+                                </TabsList>
+                            </div>
+                        )}
+                        <TabsContent value={activeSongLanguage} className="grid gap-4 py-2">
                         {/* Information Section */}
                         <div className="border-b pb-4 space-y-3">
                             <h4 className="text-xs font-bold uppercase tracking-wider text-muted-foreground">
@@ -930,7 +969,8 @@ export function WorshipMusicUI({
                                 />
                             </div>
                         </div>
-                    </div>
+                        </TabsContent>
+                    </Tabs>
 
                     <DialogFooter>
                         <Button variant="outline" onClick={() => setSongFormOpen(false)}>

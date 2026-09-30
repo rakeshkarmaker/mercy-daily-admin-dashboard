@@ -29,6 +29,13 @@ export interface PrayerManagementUIProps {
 }
 
 type FormState = PrayerInput
+type ContentLanguage = 'en' | 'es' | 'pt'
+
+const CONTENT_LANGUAGES: { value: ContentLanguage; label: string }[] = [
+    { value: 'en', label: 'English' },
+    { value: 'es', label: 'Español' },
+    { value: 'pt', label: 'Português' },
+]
 
 const emptyForm: FormState = {
     verse: '',
@@ -37,6 +44,12 @@ const emptyForm: FormState = {
     prayer: '',
     practice: '',
 }
+
+const createEmptyLanguageForms = (): Record<ContentLanguage, FormState> => ({
+    en: { ...emptyForm },
+    es: { ...emptyForm },
+    pt: { ...emptyForm },
+})
 
 export function PrayerManagementUI({
     prayers,
@@ -56,6 +69,8 @@ export function PrayerManagementUI({
     const [formOpen, setFormOpen] = useState(false)
     const [editing, setEditing] = useState<Prayer | null>(null)
     const [form, setForm] = useState<FormState>(emptyForm)
+    const [languageForms, setLanguageForms] = useState<Record<ContentLanguage, FormState>>(createEmptyLanguageForms)
+    const [activeLanguage, setActiveLanguage] = useState<ContentLanguage>('en')
     const [viewing, setViewing] = useState<Prayer | null>(null)
     const [deleting, setDeleting] = useState<Prayer | null>(null)
     const [scheduling, setScheduling] = useState<Prayer | null>(null)
@@ -65,11 +80,14 @@ export function PrayerManagementUI({
     const openCreate = () => {
         setEditing(null)
         setForm(emptyForm)
+        setLanguageForms(createEmptyLanguageForms())
+        setActiveLanguage('en')
         setFormOpen(true)
     }
 
     const openEdit = (prayer: Prayer) => {
         setEditing(prayer)
+        setActiveLanguage('en')
         setForm({
             verse: prayer.verse,
             reference: prayer.reference,
@@ -81,11 +99,12 @@ export function PrayerManagementUI({
     }
 
     const submitForm = async () => {
-        if (!form.verse.trim() || !form.reference.trim() || !form.prayer.trim()) return
+        const values = editing ? form : languageForms[activeLanguage]
+        if (!values.verse.trim() || !values.reference.trim() || !values.prayer.trim()) return
         setSaving(true)
         try {
-            if (editing) await onUpdatePrayer(editing.id, form)
-            else await onCreatePrayer(form)
+            if (editing) await onUpdatePrayer(editing.id, values)
+            else await onCreatePrayer(values)
             setFormOpen(false)
         } finally {
             setSaving(false)
@@ -174,9 +193,13 @@ export function PrayerManagementUI({
                 open={formOpen}
                 editing={editing}
                 form={form}
+                languageForms={languageForms}
+                activeLanguage={activeLanguage}
                 saving={saving}
                 onOpenChange={setFormOpen}
                 onChange={setForm}
+                onLanguageChange={(language) => setActiveLanguage(language)}
+                onLanguageFormChange={(language, nextForm) => setLanguageForms((previous) => ({ ...previous, [language]: nextForm }))}
                 onSubmit={submitForm}
             />
 
@@ -248,27 +271,48 @@ function ContentBlock({ label, value }: { label: string; value: string }) {
     return <div className="space-y-1"><h4 className="font-semibold text-foreground">{label}</h4><p className="whitespace-pre-wrap rounded-lg border border-dialog-border bg-dialog-bg/60 p-3 text-muted-foreground">{value}</p></div>
 }
 
-function PrayerFormDialog({ open, editing, form, saving, onOpenChange, onChange, onSubmit }: { open: boolean; editing: Prayer | null; form: FormState; saving: boolean; onOpenChange: (open: boolean) => void; onChange: (form: FormState) => void; onSubmit: () => Promise<void> }) {
-    const field = (key: keyof FormState, label: string, multiline = false) => multiline
-        ? <Textarea value={form[key] ?? ''} onChange={(event) => onChange({ ...form, [key]: event.target.value })} placeholder={label} aria-label={label} />
-        : <Input value={form[key] ?? ''} onChange={(event) => onChange({ ...form, [key]: event.target.value })} placeholder={label} aria-label={label} />
+function PrayerFormDialog({ open, editing, form, languageForms, activeLanguage, saving, onOpenChange, onChange, onLanguageChange, onLanguageFormChange, onSubmit }: {
+    open: boolean
+    editing: Prayer | null
+    form: FormState
+    languageForms: Record<ContentLanguage, FormState>
+    activeLanguage: ContentLanguage
+    saving: boolean
+    onOpenChange: (open: boolean) => void
+    onChange: (form: FormState) => void
+    onLanguageChange: (language: ContentLanguage) => void
+    onLanguageFormChange: (language: ContentLanguage, form: FormState) => void
+    onSubmit: () => Promise<void>
+}) {
+    const renderFields = (values: FormState, update: (form: FormState) => void) => {
+        const field = (key: keyof FormState, label: string, multiline = false) => multiline
+            ? <Textarea value={values[key] ?? ''} onChange={(event) => update({ ...values, [key]: event.target.value })} placeholder={label} aria-label={label} />
+            : <Input value={values[key] ?? ''} onChange={(event) => update({ ...values, [key]: event.target.value })} placeholder={label} aria-label={label} />
+
+        return <div className="grid gap-3">
+            <label className="grid gap-1.5 text-sm font-medium">Verse{field('verse', 'Enter verse')}</label>
+            <label className="grid gap-1.5 text-sm font-medium">Reference{field('reference', 'Enter scripture reference')}</label>
+            <label className="grid gap-1.5 text-sm font-medium">Reflection{field('reflection', 'Enter reflection', true)}</label>
+            <label className="grid gap-1.5 text-sm font-medium">Prayer{field('prayer', 'Enter prayer', true)}</label>
+            <label className="grid gap-1.5 text-sm font-medium">Practice{field('practice', 'Optional practice', true)}</label>
+        </div>
+    }
 
     return <Dialog open={open} onOpenChange={onOpenChange}>
-        <DialogContent className="sm:max-w-2xl">
+        <DialogContent className="sm:max-w-2xl max-h-[90vh] overflow-y-auto">
             <DialogHeader>
                 <DialogTitle>{editing ? 'Edit prayer' : 'Add prayer'}</DialogTitle>
-                <DialogDescription>Keep the prayer, verse, and reflection clear and ready for the daily feed.</DialogDescription>
+                <DialogDescription>{editing ? 'Update the selected daily prayer.' : 'Translation saving is not connected yet. Create submits the selected language only.'}</DialogDescription>
             </DialogHeader>
-            <div className="grid gap-3">
-                <label className="grid gap-1.5 text-sm font-medium">Verse{field('verse', 'Enter verse')}</label>
-                <label className="grid gap-1.5 text-sm font-medium">Reference{field('reference', 'Enter scripture reference')}</label>
-                <label className="grid gap-1.5 text-sm font-medium">Reflection{field('reflection', 'Enter reflection', true)}</label>
-                <label className="grid gap-1.5 text-sm font-medium">Prayer{field('prayer', 'Enter prayer', true)}</label>
-                <label className="grid gap-1.5 text-sm font-medium">Practice{field('practice', 'Optional practice', true)}</label>
-            </div>
+            {editing ? renderFields(form, onChange) : <Tabs value={activeLanguage} onValueChange={(value) => onLanguageChange(value as ContentLanguage)} className="gap-3">
+                <TabsList className="grid h-10 w-full grid-cols-3">
+                    {CONTENT_LANGUAGES.map((language) => <TabsTrigger key={language.value} value={language.value}>{language.label}</TabsTrigger>)}
+                </TabsList>
+                {CONTENT_LANGUAGES.map((language) => <TabsContent key={language.value} value={language.value}>{renderFields(languageForms[language.value], (nextForm) => onLanguageFormChange(language.value, nextForm))}</TabsContent>)}
+            </Tabs>}
             <DialogFooter>
                 <Button variant="outline" onClick={() => onOpenChange(false)}>Cancel</Button>
-                <Button disabled={saving} onClick={onSubmit}>{editing ? 'Save changes' : 'Create prayer'}</Button>
+                <Button disabled={saving || !(editing ? form : languageForms[activeLanguage]).verse.trim() || !(editing ? form : languageForms[activeLanguage]).reference.trim() || !(editing ? form : languageForms[activeLanguage]).prayer.trim()} onClick={onSubmit}>{editing ? 'Save changes' : 'Create prayer'}</Button>
             </DialogFooter>
         </DialogContent>
     </Dialog>
