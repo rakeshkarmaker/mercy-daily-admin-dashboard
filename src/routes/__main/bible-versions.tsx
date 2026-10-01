@@ -73,8 +73,9 @@ function BibleVersionsPage() {
 
     // Current version for the Book Explorer
     const selectedVersionCode = useMemo(() => {
-        if (search.version && syncedVersions.some((v) => v.code.toUpperCase() === search.version?.toUpperCase())) {
-            return search.version.toUpperCase()
+        if (search.version) {
+            const found = syncedVersions.find((v) => v.code.toUpperCase() === search.version?.toUpperCase())
+            if (found) return found.code
         }
         return syncedVersions[0]?.code ?? 'BSB'
     }, [search.version, syncedVersions])
