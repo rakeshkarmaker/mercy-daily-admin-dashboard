@@ -34,10 +34,14 @@ function SermonsPage() {
         const rows = data?.data ?? []
         const query = searchQuery.trim().toLowerCase()
         if (!query) return rows
+        // Search across every language's content.
         return rows.filter((sermon) =>
-            [sermon.title, sermon.overview ?? '', sermon.topics.map((t) => t.name).join(' ')].some((value) =>
-                value.toLowerCase().includes(query),
-            ),
+            [
+                sermon.title,
+                sermon.overview ?? '',
+                ...sermon.translations.flatMap((t) => [t.title, t.overview ?? '']),
+                sermon.topics.map((t) => t.name).join(' '),
+            ].some((value) => value.toLowerCase().includes(query)),
         )
     }, [data?.data, searchQuery])
 
@@ -54,7 +58,8 @@ function SermonsPage() {
         onError: (error: Error) => toast.error(error.message),
     })
     const updateMutation = useMutation({
-        mutationFn: ({ id, input }: { id: string; input: Partial<SermonInput> }) => updateSermon(id, input),
+        mutationFn: ({ id, input }: { id: string; input: Partial<SermonInput> }) =>
+            updateSermon(id, input),
         onSuccess: () => {
             toast.success('Sermon updated')
             invalidate()
