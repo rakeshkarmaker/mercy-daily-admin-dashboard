@@ -1,4 +1,8 @@
 import { request, toQuery } from '@/api/base'
+import type { ContentLanguage, TranslationsSync } from '@/lib/language'
+
+/** Single shared language contract (en|esp|por) — see @/lib/language. */
+export type PrayerLanguage = ContentLanguage
 
 export type Prayer = {
     id: number
@@ -7,6 +11,9 @@ export type Prayer = {
     reflection: string
     prayer: string
     practice: string | null
+    viewsCount: number
+    language: PrayerLanguage
+    translations: PrayerTranslation[]
     createdAt: string
     updatedAt: string
 }
@@ -17,6 +24,18 @@ export type PrayerInput = {
     reflection: string
     prayer: string
     practice?: string
+}
+
+/** One language payload of a devotion (daily prayer). */
+export type PrayerTranslationInput = PrayerInput & {
+    language: ContentLanguage
+}
+
+/** Translations sync set: upsert items, delete listed languages. */
+export type PrayerTranslationsSync = TranslationsSync<PrayerTranslationInput>
+
+export type PrayerTranslation = PrayerTranslationInput & {
+    updatedAt: string
 }
 
 export type PrayerSchedule = {
@@ -32,7 +51,7 @@ export type PaginatedPrayers = {
     total: number
 }
 
-export function listPrayers(params: { page?: number; limit?: number } = {}) {
+export function listPrayers(params: { page?: number; limit?: number; language?: PrayerLanguage } = {}) {
     return request<PaginatedPrayers>(`/dailyprayers${toQuery(params)}`)
 }
 
@@ -40,21 +59,27 @@ export function listSchedules() {
     return request<PrayerSchedule[]>('/dailyprayers/schedules')
 }
 
-export function getPrayer(id: number) {
-    return request<Prayer>(`/dailyprayers/${id}`)
+export function getPrayer(id: number, language?: PrayerLanguage) {
+    return request<Prayer>(`/dailyprayers/${id}${toQuery(language ? { language } : {})}`)
 }
 
-export function createPrayer(input: PrayerInput) {
+export function getPrayerTranslations(id: number) {
+    return request<PrayerTranslation[]>(`/dailyprayers/${id}/translations`)
+}
+
+export function createPrayer(input: PrayerInput, translations?: PrayerTranslationsSync) {
     return request<Prayer>('/dailyprayers', {
         method: 'POST',
-        body: JSON.stringify(input),
+        body: JSON.stringify(translations ? { ...input, translations } : input),
     })
 }
 
-export function updatePrayer(id: number, input: Partial<PrayerInput>) {
+export function updatePrayer(id: number, input: Partial<PrayerInput>, translations?: PrayerTranslationsSync | null) {
     return request<Prayer>(`/dailyprayers/${id}`, {
         method: 'PATCH',
-        body: JSON.stringify(input),
+        body: JSON.stringify(
+            translations === undefined ? input : { ...input, translations: translations ?? {} },
+        ),
     })
 }
 
@@ -88,10 +113,25 @@ export type TodayPrayer = {
     reflection: string
     prayer: string
     practice?: string | null
+    viewsCount?: number
+    language?: PrayerLanguage
+    translations?: PrayerTranslation[]
     createdAt?: string
     updatedAt?: string
 }
 
-export function getTodayPrayer() {
-    return request<TodayPrayer>('/dailyprayers/today')
+export function getTodayPrayer(language?: PrayerLanguage) {
+    return request<TodayPrayer>(`/dailyprayers/today${toQuery(language ? { language } : {})}`)
+}
+
+export type PrayerView = {
+    id: number
+    viewsCount: number
+    language: PrayerLanguage
+}
+
+export function recordPrayerView(id: number, language?: PrayerLanguage) {
+    return request<PrayerView>(`/dailyprayers/${id}/view${toQuery(language ? { language } : {})}`, {
+        method: 'POST',
+    })
 }
