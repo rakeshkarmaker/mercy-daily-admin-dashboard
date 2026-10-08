@@ -2,7 +2,8 @@ import { createFileRoute } from '@tanstack/react-router'
 import { useMemo, useState } from 'react'
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import { useSearchParams } from '@/hooks/use-search-params'
-import type { ContentLanguage } from '@/lib/language'
+import type { FilterState } from '@/components/shared/filter-builder'
+import { languageFromFilters } from '@/lib/language'
 import { WorshipMusicUI } from '@/components/features/worship-music/worship-music-ui'
 import {
     createPlaylist,
@@ -24,8 +25,17 @@ const searchSchema = z.object({
     page: z.number().catch(1).optional(),
     limit: z.number().catch(10).optional(),
     search: z.string().catch('').optional(),
-    status: z.enum(['ALL', 'DRAFT', 'PUBLISHED', 'SCHEDULED']).catch('ALL').optional(),
 })
+
+/** Status comes from the shared Add Filter component; unset means ALL. */
+function statusFromFilters(filters: FilterState[]): 'ALL' | WorshipStatus {
+    const match = filters.find((f) => f.fieldId === 'status')
+    if (!match || Array.isArray(match.value)) return 'ALL'
+    const value = match.value.trim().toUpperCase()
+    return value === 'PUBLISHED' || value === 'SCHEDULED' || value === 'DRAFT'
+        ? value
+        : 'ALL'
+}
 
 export const Route = createFileRoute('/__main/worship-music')({
     validateSearch: searchSchema,
@@ -33,15 +43,18 @@ export const Route = createFileRoute('/__main/worship-music')({
 })
 
 function WorshipMusicPage() {
-    const { page = 1, limit = 10, search: searchQuery = '', status = 'ALL' } = Route.useSearch()
+    const { page = 1, limit = 10, search: searchQuery = '' } = Route.useSearch()
     const mergeSearch = useSearchParams()
     const queryClient = useQueryClient()
-    // Active content language — the server projects it onto every row
-    // (single shared Language enum: en|esp|por).
-    const [language, setLanguage] = useState<ContentLanguage>('en')
+    // Both filters come from the shared Add Filter component: `language`
+    // drives `?language=` (unset = everything in its own language) and
+    // `status` drives the songs query (unset = all statuses).
+    const [filters, setFilters] = useState<FilterState[]>([])
+    const language = languageFromFilters(filters)
+    const status = statusFromFilters(filters)
 
     const { data, isLoading } = useQuery({
-        queryKey: ['worship-songs', page, limit, status, language],
+        queryKey: ['worship-songs', page, limit, status, language ?? 'all'],
         queryFn: () =>
             listSongs({
                 page,
@@ -51,7 +64,7 @@ function WorshipMusicPage() {
             }),
     })
     const { data: playlists = [] } = useQuery({
-        queryKey: ['worship-playlists', language],
+        queryKey: ['worship-playlists', language ?? 'all'],
         queryFn: () => listPlaylists(language),
     })
     const { data: stats } = useQuery({
@@ -149,10 +162,8 @@ function WorshipMusicPage() {
             songsLoading={isLoading}
             page={page}
             limit={limit}
-            status={status}
-            onStatusChange={(value) => mergeSearch({ status: value === 'ALL' ? undefined : value, page: 1 })}
-            language={language}
-            onLanguageChange={setLanguage}
+            filters={filters}
+            onFiltersChange={setFilters}
             playlists={playlists}
             searchQuery={searchQuery}
             onSearchChange={(value) => mergeSearch({ search: value || undefined, page: 1 })}

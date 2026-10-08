@@ -27,18 +27,21 @@ import {
 } from '@/components/ui/dialog'
 import { TrashConfirm } from '@/components/shared/trash-confirm'
 import { resolveImage } from '@/api'
-import { CONTENT_LANGUAGES, languageLabel } from '@/lib/language'
+import { CONTENT_LANGUAGES, LANGUAGE_FILTER_OPTIONS } from '@/lib/language'
 import type { ContentLanguage } from '@/lib/language'
-import { LanguageViewFilter } from '@/components/shared/language-view-filter'
+import { FilterBuilder } from '@/components/shared/filter-builder'
+import type { FilterOption, FilterState } from '@/components/shared/filter-builder'
 import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover'
 import { ImageUpload } from '@/components/shared/image-upload'
 import {
+    Activity,
     Check,
     CheckCircle2,
     Calendar,
     ChevronsUpDown,
     Clock,
     ImagePlus,
+    Languages,
     ListMusic,
     Music,
     Pause,
@@ -70,11 +73,9 @@ export interface WorshipMusicUIProps {
     songsLoading?: boolean
     page: number
     limit: number
-    status: 'ALL' | 'DRAFT' | 'PUBLISHED' | 'SCHEDULED'
-    onStatusChange: (status: 'ALL' | 'DRAFT' | 'PUBLISHED' | 'SCHEDULED') => void
-    /** Active content language — the server projects it onto every row. */
-    language: ContentLanguage
-    onLanguageChange: (language: ContentLanguage) => void
+    /** FilterBuilder state — `language` drives `?language=`, `status` the songs query. Omit = all. */
+    filters: FilterState[]
+    onFiltersChange: (filters: FilterState[]) => void
     playlists: WorshipPlaylist[]
     searchQuery: string
     onSearchChange: (value: string) => void
@@ -104,15 +105,23 @@ const emptyLanguageForm = (): LanguageFormState => ({
 })
 
 /**
- * Language blocks for a new/existing entity. English always exists (it is
- * canonical and lives in the base columns); esp/por are optional and fall
- * back to English per field when empty.
+ * Language blocks for a new/existing entity. The original language lives
+ * in the base columns; the other languages are optional and fall back to
+ * it per field when empty.
  */
 const createEmptyLanguageForms = (): LanguageForms => ({
     en: emptyLanguageForm(),
     esp: emptyLanguageForm(),
     por: emptyLanguageForm(),
 })
+
+const ORDERED_LANGUAGES = ['en', 'esp', 'por'] as const
+
+/** First filled tab wins — no picker needed. Empty tabs are ignored. */
+function resolveBase(forms: LanguageForms, storedBase?: ContentLanguage): ContentLanguage | undefined {
+    if (storedBase && forms[storedBase].title.trim()) return storedBase
+    return ORDERED_LANGUAGES.find((l) => forms[l].title.trim())
+}
 
 type SongFormState = {
     artist: string
@@ -135,37 +144,39 @@ const emptySongForm: SongFormState = {
     isFeatured: false,
 }
 
-/** Language blocks from an existing song (en = top-level fields). */
-const songLanguageForms = (song: WorshipSong): LanguageForms => ({
-    en: {
+/** Language blocks from an existing song (top-level fields = its own language). */
+const songLanguageForms = (song: WorshipSong): LanguageForms => {
+    const forms = createEmptyLanguageForms()
+    const base = song.language ?? 'en'
+    forms[base] = {
         title: song.title,
         description: song.description ?? '',
         bibleReference: song.bibleReference ?? '',
-    },
-    esp: (() => {
-        const t = song.translations.find((t) => t.language === 'esp')
-        return t
-            ? { title: t.title, description: t.description ?? '', bibleReference: t.bibleReference ?? '' }
-            : emptyLanguageForm()
-    })(),
-    por: (() => {
-        const t = song.translations.find((t) => t.language === 'por')
-        return t
-            ? { title: t.title, description: t.description ?? '', bibleReference: t.bibleReference ?? '' }
-            : emptyLanguageForm()
-    })(),
-})
+    }
+    for (const t of song.translations) {
+        if (t.language === base) continue
+        forms[t.language] = {
+            title: t.title,
+            description: t.description ?? '',
+            bibleReference: t.bibleReference ?? '',
+        }
+    }
+    return forms
+}
 
 /**
- * esp/por sync blocks. A block with a title upserts that language; an empty
- * title on update removes the stored translation.
+ * Sync blocks for the languages other than the base one. A block with a
+ * title upserts that language; an empty title on update removes the
+ * stored translation.
  */
 function toSongTranslations(
     forms: LanguageForms,
+    baseLanguage: ContentLanguage,
     editing: boolean,
 ): SongTranslationInput[] {
     const items: SongTranslationInput[] = []
-    for (const language of ['esp', 'por'] as const) {
+    for (const language of ['en', 'esp', 'por'] as const) {
+        if (language === baseLanguage) continue
         const form = forms[language]
         if (form.title.trim()) {
             items.push({
@@ -194,33 +205,32 @@ function secondsToMinutes(totalSeconds: number): string {
     return String(Math.round((totalSeconds / 60) * 100) / 100)
 }
 
-/** Language blocks for a playlist (en = top-level fields). */
-const playlistLanguageForms = (playlist: WorshipPlaylist): LanguageForms => ({
-    en: {
+/** Language blocks for a playlist (top-level fields = its own language). */
+const playlistLanguageForms = (playlist: WorshipPlaylist): LanguageForms => {
+    const forms = createEmptyLanguageForms()
+    const base = playlist.language ?? 'en'
+    forms[base] = {
         title: playlist.title,
         description: playlist.description ?? '',
         bibleReference: '',
-    },
-    esp: (() => {
-        const t = playlist.translations.find((t) => t.language === 'esp')
-        return t ? { title: t.title, description: t.description ?? '', bibleReference: '' } : emptyLanguageForm()
-    })(),
-    por: (() => {
-        const t = playlist.translations.find((t) => t.language === 'por')
-        return t ? { title: t.title, description: t.description ?? '', bibleReference: '' } : emptyLanguageForm()
-    })(),
-})
+    }
+    for (const t of playlist.translations) {
+        if (t.language === base) continue
+        forms[t.language] = { title: t.title, description: t.description ?? '', bibleReference: '' }
+    }
+    return forms
+}
 
 type PlaylistFormState = PlaylistInput & { coverUrl: string; description: string; isFeatured: boolean }
 
 /** True when the row actually carries content in that language. */
 function hasSongLanguage(song: WorshipSong, language: ContentLanguage): boolean {
-    if (language === 'en') return true
+    if ((song.language ?? 'en') === language) return true
     return song.translations.some((t) => t.language === language)
 }
 
 function hasPlaylistLanguage(playlist: WorshipPlaylist, language: ContentLanguage): boolean {
-    if (language === 'en') return true
+    if ((playlist.language ?? 'en') === language) return true
     return playlist.translations.some((t) => t.language === language)
 }
 
@@ -238,10 +248,15 @@ function LanguageDot({ language, available }: { language: ContentLanguage; avail
     )
 }
 
-/** esp/por playlist sync blocks (empty title on update removes the row). */
-function toPlaylistTranslations(forms: LanguageForms, editing: boolean): PlaylistTranslationInput[] {
+/** Playlist sync blocks for the languages other than the base one (empty title on update removes the row). */
+function toPlaylistTranslations(
+    forms: LanguageForms,
+    baseLanguage: ContentLanguage,
+    editing: boolean,
+): PlaylistTranslationInput[] {
     const items: PlaylistTranslationInput[] = []
-    for (const language of ['esp', 'por'] as const) {
+    for (const language of ['en', 'esp', 'por'] as const) {
+        if (language === baseLanguage) continue
         const form = forms[language]
         if (form.title.trim()) {
             items.push({
@@ -256,7 +271,7 @@ function toPlaylistTranslations(forms: LanguageForms, editing: boolean): Playlis
     return items
 }
 
-/** A language tab strip shared by the song/playlist dialogs. */
+/** A language tab strip shared by the song/playlist dialogs. Fill any tab. */
 function LanguageTabs({
     value,
     forms,
@@ -278,7 +293,7 @@ function LanguageTabs({
                 {CONTENT_LANGUAGES.map((language) => (
                     <TabsTrigger key={language.value} value={language.value} className="gap-1.5">
                         {language.label}
-                        {language.value !== 'en' && forms[language.value].title.trim() && (
+                        {forms[language.value].title.trim() && (
                             <span className="inline-block size-1.5 rounded-full bg-primary" aria-hidden />
                         )}
                     </TabsTrigger>
@@ -286,25 +301,17 @@ function LanguageTabs({
             </TabsList>
             {CONTENT_LANGUAGES.map((language) => {
                 const form = forms[language.value]
-                const isEnglish = language.value === 'en'
                 const set = (key: keyof LanguageFormState, next: string) =>
                     onFormChange(language.value, { ...form, [key]: next })
                 return (
                     <TabsContent key={language.value} value={language.value} className="mt-0">
                         <div className="space-y-3">
-                            <p className="text-[11px] text-muted-foreground">
-                                {isEnglish
-                                    ? 'Canonical English content, stored in the base fields.'
-                                    : `Optional ${languageLabel(language.value)} translation. Leave the title empty to remove it; empty fields fall back to English.`}
-                            </p>
                             <div className="grid gap-1.5">
-                                <Label className="text-xs font-medium">
-                                    Title {isEnglish && <span className="text-destructive">*</span>}
-                                </Label>
+                                <Label className="text-xs font-medium">Title</Label>
                                 <Input
                                     value={form.title}
                                     onChange={(e) => set('title', e.target.value)}
-                                    placeholder={isEnglish ? 'e.g. Goodness of God' : 'Translated title'}
+                                    placeholder="e.g. Goodness of God"
                                     aria-label={`Title (${language.label})`}
                                 />
                             </div>
@@ -325,9 +332,7 @@ function LanguageTabs({
                                     rows={2}
                                     value={form.description}
                                     onChange={(e) => set('description', e.target.value)}
-                                    placeholder={
-                                        language.value === 'en' ? 'Background or prayer focus...' : 'Translated text'
-                                    }
+                                    placeholder="Background or prayer focus..."
                                     aria-label={`${field3Label} (${language.label})`}
                                 />
                             </div>
@@ -345,10 +350,8 @@ export function WorshipMusicUI({
     songsLoading = false,
     page,
     limit,
-    status,
-    onStatusChange,
-    language,
-    onLanguageChange,
+    filters,
+    onFiltersChange,
     playlists,
     searchQuery,
     onSearchChange,
@@ -437,6 +440,31 @@ export function WorshipMusicUI({
     //     [stats],
     // )
 
+    const filterOptions: FilterOption[] = useMemo(
+        () => [
+            {
+                id: 'language',
+                label: 'Language',
+                icon: Languages,
+                type: 'select',
+                options: LANGUAGE_FILTER_OPTIONS,
+            },
+            // Status applies to the songs library query only; playlists ignore it.
+            {
+                id: 'status',
+                label: 'Status',
+                icon: Activity,
+                type: 'select',
+                options: [
+                    { label: 'Published', value: 'PUBLISHED' },
+                    { label: 'Scheduled', value: 'SCHEDULED' },
+                    { label: 'Draft', value: 'DRAFT' },
+                ],
+            },
+        ],
+        [],
+    )
+
     const openCreateSong = () => {
         setEditingSong(null)
         setSongForm({ ...emptySongForm, playlistId: playlists[0]?.id ?? '' })
@@ -446,6 +474,7 @@ export function WorshipMusicUI({
     }
 
     const openEditSong = (song: WorshipSong) => {
+        const base = song.language ?? 'en'
         setEditingSong(song)
         setSongForm({
             artist: song.artist,
@@ -457,27 +486,30 @@ export function WorshipMusicUI({
             isFeatured: song.isFeatured,
         })
         setSongLangForms(songLanguageForms(song))
-        setSongLang('en')
+        setSongLang(base)
         setSongFormOpen(true)
     }
 
     const submitSongForm = async () => {
-        const en = songLangForms.en
-        if (!en.title.trim() || !songForm.artist.trim()) return
+        const baseLang = resolveBase(songLangForms, editingSong ? (editingSong.language ?? 'en') : undefined)
+        if (!baseLang) return
+        const base = songLangForms[baseLang]
+        if (!base.title.trim() || !songForm.artist.trim()) return
 
         const input: SongInput = {
-            title: en.title.trim(),
+            language: baseLang,
+            title: base.title.trim(),
             artist: songForm.artist.trim() || undefined,
             durationSeconds: minutesToSeconds(songForm.durationMinutes),
             audioUrl: songForm.audioUrl.trim() || null,
             coverUrl: songForm.coverUrl.trim() || null,
-            description: en.description.trim() || null,
-            bibleReference: en.bibleReference.trim() || null,
+            description: base.description.trim() || null,
+            bibleReference: base.bibleReference.trim() || null,
             playlistId: songForm.playlistId || null,
             status: songForm.status,
             isFeatured: songForm.isFeatured,
             translations: {
-                items: toSongTranslations(songLangForms, Boolean(editingSong)),
+                items: toSongTranslations(songLangForms, baseLang, Boolean(editingSong)),
             },
         }
 
@@ -668,65 +700,60 @@ export function WorshipMusicUI({
         [currentPlaying, isPlaying],
     )
 
+    const openCreatePlaylist = () => {
+        setEditingPlaylist(null)
+        setPlaylistForm({
+            title: '',
+            description: '',
+            coverUrl: '',
+            isFeatured: true,
+        })
+        setPlaylistLangForms(createEmptyLanguageForms())
+        setPlaylistLang('en')
+        setPlaylistFormOpen(true)
+    }
+
     return (
-        <div className="space-y-6 pb-24">
-            <PageHeader
-                title="Worship Music"
-                description="Manage praise and worship audio tracks and playlists on the mobile app."
-            >
-                <div className="flex items-center gap-2">
-                    <Button onClick={openCreateSong} className="gap-2 bg-primary hover:bg-primary/90 text-primary-foreground cursor-pointer shadow-sm">
-                        <Plus className="size-4" /> Add Music
-                    </Button>
-                </div>
-            </PageHeader>
-
-            {/* <StatCardsGrid cards={statCards} /> */}
-
-            {/* View Switching Tabs */}
-            <div className="flex flex-col sm:flex-row items-stretch sm:items-center justify-between gap-4">
-                <Tabs value={mainTab} onValueChange={(v) => setMainTab(v as any)} className="w-full sm:w-auto">
-                    <TabsList>
-                        <TabsTrigger value="songs" className="gap-1.5">
-                            <Music className="size-4" /> Songs Library
-                        </TabsTrigger>
-                        <TabsTrigger value="playlists" className="gap-1.5">
-                            <ListMusic className="size-4" /> Featured Playlists
-                        </TabsTrigger>
-                    </TabsList>
-                </Tabs>
-                <LanguageViewFilter value={language} onChange={onLanguageChange} />
-
-                {mainTab === 'songs' && (
-                    <div className="flex items-center gap-3">
-                        <Select value={status} onValueChange={(val) => onStatusChange(val as typeof status)}>
-                            <SelectTrigger className="w-36">
-                                <SelectValue placeholder="Status: All" />
-                            </SelectTrigger>
-                            <SelectContent>
-                                <SelectItem value="ALL">Status : All</SelectItem>
-                                <SelectItem value="PUBLISHED">Published</SelectItem>
-                                <SelectItem value="SCHEDULED">Scheduled</SelectItem>
-                                <SelectItem value="DRAFT">Draft</SelectItem>
-                            </SelectContent>
-                        </Select>
-
+        <div className="flex w-full max-w-full flex-col gap-4 pb-24">
+            <div className="flex flex-col gap-4 border-b border-border/50 pb-4 lg:flex-row lg:items-center lg:justify-between">
+                <PageHeader
+                    title="Worship Music"
+                    description="Manage praise and worship audio tracks and playlists on the mobile app."
+                />
+                <div className="flex flex-wrap items-center gap-3">
+                    <FilterBuilder options={filterOptions} filters={filters} onFiltersChange={onFiltersChange} />
+                    {mainTab === 'songs' && (
                         <SearchInput
                             value={searchQuery}
                             onValueChange={onSearchChange}
                             placeholder="Search title, artist, verse..."
                             className="w-full sm:w-64"
                         />
-                        <Button
-                            onClick={openCreateSong}
-                            size="sm"
-                            className="gap-1.5 bg-primary hover:bg-primary/90 text-primary-foreground cursor-pointer shrink-0"
-                        >
-                            <Plus className="size-4" /> Add Music
+                    )}
+                    {mainTab === 'songs' ? (
+                        <Button onClick={openCreateSong}>
+                            <Plus className="mr-2 size-4" />
+                            Add Music
                         </Button>
-                    </div>
-                )}
+                    ) : (
+                        <Button onClick={openCreatePlaylist}>
+                            <Plus className="mr-2 size-4" />
+                            Add Playlist
+                        </Button>
+                    )}
+                </div>
             </div>
+
+            <Tabs value={mainTab} onValueChange={(v) => setMainTab(v as any)} className="w-full">
+                <TabsList variant="line" className="mb-3 w-full max-w-full justify-start overflow-x-auto border-b border-border/50">
+                    <TabsTrigger value="songs" className="flex-none gap-1.5 px-4">
+                        <Music className="size-4" /> Songs Library
+                    </TabsTrigger>
+                    <TabsTrigger value="playlists" className="flex-none gap-1.5 px-4">
+                        <ListMusic className="size-4" /> Featured Playlists
+                    </TabsTrigger>
+                </TabsList>
+            </Tabs>
 
             {/* Tab 1: Songs Table */}
             {mainTab === 'songs' && (
@@ -748,31 +775,11 @@ export function WorshipMusicUI({
             {/* Tab 2: Featured Playlists */}
             {mainTab === 'playlists' && (
                 <div className="space-y-4">
-                    <div className="flex items-center justify-between">
-                        <div>
-                            <h3 className="text-base font-semibold text-foreground">Featured Playlists</h3>
-                            <p className="text-xs text-muted-foreground">
-                                These playlists are displayed in the carousel on the mobile app home screen.
-                            </p>
-                        </div>
-                        <Button
-                            size="sm"
-                            onClick={() => {
-                                setEditingPlaylist(null)
-                                setPlaylistForm({
-                                    title: '',
-                                    description: '',
-                                    coverUrl: '',
-                                    isFeatured: true,
-                                })
-                                setPlaylistLangForms(createEmptyLanguageForms())
-                                setPlaylistLang('en')
-                                setPlaylistFormOpen(true)
-                            }}
-                            className="gap-1.5"
-                        >
-                            <Plus className="size-4" /> Add Playlist
-                        </Button>
+                    <div>
+                        <h3 className="text-base font-semibold text-foreground">Featured Playlists</h3>
+                        <p className="text-xs text-muted-foreground">
+                            These playlists are displayed in the carousel on the mobile app home screen.
+                        </p>
                     </div>
 
                     <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-4 gap-4">
@@ -814,6 +821,7 @@ export function WorshipMusicUI({
                                             <ActionButton
                                                 label="Edit playlist"
                                                 onClick={() => {
+                                                    const base = pl.language ?? 'en'
                                                     setEditingPlaylist(pl)
                                                     setPlaylistForm({
                                                         title: pl.title,
@@ -822,7 +830,7 @@ export function WorshipMusicUI({
                                                         isFeatured: pl.isFeatured,
                                                     })
                                                     setPlaylistLangForms(playlistLanguageForms(pl))
-                                                    setPlaylistLang('en')
+                                                    setPlaylistLang(base)
                                                     setPlaylistFormOpen(true)
                                                 }}
                                             >
@@ -850,8 +858,7 @@ export function WorshipMusicUI({
                     <DialogHeader>
                         <DialogTitle>{editingSong ? 'Edit Worship Music' : 'Add New Worship Music'}</DialogTitle>
                         <DialogDescription>
-                            Switch tabs to manage each language. English is canonical; Spanish and Portuguese are
-                            optional and fall back to English when fields are empty.
+                            Fill any language tab — the first filled tab becomes the track. Empty tabs are ignored.
                         </DialogDescription>
                     </DialogHeader>
 
@@ -974,7 +981,7 @@ export function WorshipMusicUI({
                         </Button>
                         <Button
                             onClick={submitSongForm}
-                            disabled={!songLangForms.en.title.trim() || !songForm.artist.trim()}
+                            disabled={!resolveBase(songLangForms, editingSong ? (editingSong.language ?? 'en') : undefined) || !songForm.artist.trim()}
                             className="bg-primary hover:bg-primary/90 text-primary-foreground"
                         >
                             {editingSong ? 'Save Changes' : 'Add Music Track'}
@@ -1028,21 +1035,24 @@ export function WorshipMusicUI({
                         </Button>
                         <Button
                             onClick={async () => {
-                                const en = playlistLangForms.en
+                                const baseLang = resolveBase(playlistLangForms, editingPlaylist ? (editingPlaylist.language ?? 'en') : undefined)
+                                if (!baseLang) return
+                                const base = playlistLangForms[baseLang]
                                 const input: PlaylistInput = {
-                                    title: en.title.trim(),
-                                    description: en.description.trim() || null,
+                                    language: baseLang,
+                                    title: base.title.trim(),
+                                    description: base.description.trim() || null,
                                     coverUrl: playlistForm.coverUrl.trim() || null,
                                     isFeatured: playlistForm.isFeatured,
                                     translations: {
-                                        items: toPlaylistTranslations(playlistLangForms, Boolean(editingPlaylist)),
+                                        items: toPlaylistTranslations(playlistLangForms, baseLang, Boolean(editingPlaylist)),
                                     },
                                 }
                                 if (editingPlaylist) await onUpdatePlaylist(editingPlaylist.id, input)
                                 else await onCreatePlaylist(input)
                                 setPlaylistFormOpen(false)
                             }}
-                            disabled={!playlistLangForms.en.title.trim()}
+                            disabled={!resolveBase(playlistLangForms, editingPlaylist ? (editingPlaylist.language ?? 'en') : undefined)}
                             className="bg-primary hover:bg-primary/90 text-primary-foreground"
                         >
                             Save Playlist

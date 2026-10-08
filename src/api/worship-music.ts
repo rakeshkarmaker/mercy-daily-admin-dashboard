@@ -20,6 +20,8 @@ export type SongTranslationInput = {
 export type SongTranslationsSync = TranslationsSync<SongTranslationInput>
 
 export type SongInput = {
+    /** Original language of the top-level fields (en default). */
+    language?: WorshipLanguage
     title: string
     artist?: string
     /** Duration in whole seconds (UI enters decimal minutes, converts here). */
@@ -44,6 +46,8 @@ export type PlaylistTranslationInput = {
 export type PlaylistTranslationsSync = TranslationsSync<PlaylistTranslationInput>
 
 export type PlaylistInput = {
+    /** Original language of the top-level fields (en default). */
+    language?: WorshipLanguage
     title: string
     description?: string | null
     coverUrl?: string | null

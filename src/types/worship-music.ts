@@ -10,7 +10,7 @@ export type WorshipSongPlaylist = {
     title: string
 }
 
-/** Per-language song content (esp/por rows; en mirrors the base fields). */
+/** Per-language song content (rows for languages other than the song's own). */
 export type WorshipSongTranslation = {
     language: WorshipLanguage
     title: string
@@ -36,13 +36,13 @@ export type WorshipSong = {
     playlist: WorshipSongPlaylist | null
     /** Language of the top-level title/description/verse in this response. */
     language: WorshipLanguage
-    /** Every other language's content (non-en projections lead with en). */
+    /** Every other language's content (non-base projections lead with the base content). */
     translations: WorshipSongTranslation[]
     createdAt: string
     updatedAt: string
 }
 
-/** Per-language playlist content (esp/por rows; en mirrors base fields). */
+/** Per-language playlist content (rows for languages other than the playlist's own). */
 export type WorshipPlaylistTranslation = {
     language: WorshipLanguage
     title: string
@@ -59,7 +59,7 @@ export type WorshipPlaylist = {
     songCount: number
     /** Language of the top-level title/description in this response. */
     language: WorshipLanguage
-    /** Every other language's content (non-en projections lead with en). */
+    /** Every other language's content (non-base projections lead with the base content). */
     translations: WorshipPlaylistTranslation[]
     createdAt: string
     updatedAt: string
