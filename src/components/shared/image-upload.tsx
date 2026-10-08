@@ -1,12 +1,12 @@
 import { useRef, useState } from 'react'
 import { Button } from '@/components/ui/button'
 import { Spinner } from '@/components/shared/spinner'
-import { deleteImage, resolveImage, uploadImage } from '@/api'
+import { deleteImage, isCloudinaryUrl, isDeletableImage, resolveImage, uploadImage } from '@/api'
 import { Upload, X } from 'lucide-react'
 import { toast } from 'sonner'
 
 export interface ImageUploadProps {
-    /** Current image value: a `/uploads/...` path or an absolute URL. */
+    /** Current image value: a Cloudinary secure URL or any absolute URL. */
     value: string
     onChange: (url: string) => void
     /** Backend upload folder scope (e.g. `sermons`, `worship-music`). */
@@ -23,7 +23,7 @@ export interface ImageUploadProps {
 /**
  * Controlled single-image upload for plain React state (dialogs, presenters).
  * Uploads through the backend upload module (`POST /upload/image?folder=…`)
- * and stores the returned `/uploads/...` url. Mirrors the form-bound
+ * and stores the returned Cloudinary secure URL. Mirrors the form-bound
  * FormImage, but without the TanStack form field context.
  */
 export function ImageUpload({
@@ -38,7 +38,7 @@ export function ImageUpload({
     const inputRef = useRef<HTMLInputElement>(null)
     const [busy, setBusy] = useState(false)
 
-    const isUploadedFile = value.startsWith('/uploads/')
+    const isUploadedFile = value.startsWith('/uploads/') || isCloudinaryUrl(value)
     const preview = value ? (isUploadedFile ? resolveImage(value) : value) : null
 
     const handleFileChange = async (event: React.ChangeEvent<HTMLInputElement>) => {
@@ -58,9 +58,9 @@ export function ImageUpload({
     const handleRemove = async () => {
         setBusy(true)
         try {
-            // Only server-stored uploads can be deleted on the backend;
-            // legacy absolute https URLs are not ours to remove.
-            if (isUploadedFile) await deleteImage(value)
+            // Only Cloudinary-hosted uploads can be deleted on the backend;
+            // legacy /uploads/... paths and external URLs are not removable.
+            if (isDeletableImage(value)) await deleteImage(value)
             onChange('')
         } catch (err) {
             toast.error(err instanceof Error ? err.message : 'Delete failed')

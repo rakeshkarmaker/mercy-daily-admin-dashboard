@@ -1,364 +1,153 @@
-import type {
-    WorshipArtist,
-    WorshipHeroBanner,
-    WorshipPlaylist,
-    WorshipSong,
-} from '@/types/worship-music'
+import { request, toQuery } from '@/api/base'
+import type { ContentLanguage, TranslationsSync } from '@/lib/language'
+import type { WorshipPlaylist, WorshipSong } from '@/types/worship-music'
 
-export type {
-    WorshipArtist,
-    WorshipHeroBanner,
-    WorshipPlaylist,
-    WorshipSong,
+export type { WorshipPlaylist, WorshipSong }
+
+/** Single shared language contract (en|esp|por) — see @/lib/language. */
+export type WorshipLanguage = ContentLanguage
+
+export type WorshipStatus = 'DRAFT' | 'PUBLISHED' | 'SCHEDULED'
+
+/** Per-language song block. Empty title on update = remove that translation. */
+export type SongTranslationInput = {
+    language: WorshipLanguage
+    title?: string
+    description?: string | null
+    bibleReference?: string | null
 }
 
-// Seed data based directly on the actual Mercy Daily mobile app Worship Music screen
-export const INITIAL_FEATURED_BANNER: WorshipHeroBanner = {
-    id: 'hero-1',
-    title: 'Praise the Lord All My Soul',
-    subtitle: 'A playlist to lift your heart in worship.',
-    coverUrl: 'https://images.unsplash.com/photo-1519834785169-98be25ec3f84?auto=format&fit=crop&w=1200&q=80',
-    buttonText: 'Play Now',
-    linkedPlaylistId: 'pl-1',
-    isActive: true,
+export type SongTranslationsSync = TranslationsSync<SongTranslationInput>
+
+export type SongInput = {
+    title: string
+    artist?: string
+    /** Duration in whole seconds (UI enters decimal minutes, converts here). */
+    durationSeconds?: number
+    audioUrl?: string | null
+    coverUrl?: string | null
+    description?: string | null
+    bibleReference?: string | null
+    playlistId?: string | null
+    status?: WorshipStatus
+    isFeatured?: boolean
+    translations?: SongTranslationInput[] | SongTranslationsSync
 }
 
-export const INITIAL_PLAYLISTS: WorshipPlaylist[] = [
-    {
-        id: 'pl-1',
-        title: 'Morning Worship',
-        description: 'Start your morning in reverent prayer and peace.',
-        coverUrl: 'https://images.unsplash.com/photo-1470240731273-7821a6eeb6bd?auto=format&fit=crop&w=600&q=80',
-        songCount: 20,
-        isFeatured: true,
-        category: 'Morning Prayer',
-        createdAt: '2026-07-01T08:00:00Z',
-    },
-    {
-        id: 'pl-2',
-        title: 'Peace & Hope',
-        description: 'Gentle melodies to soothe anxiety and encourage faith.',
-        coverUrl: 'https://images.unsplash.com/photo-1518531933037-91b2f5f229cc?auto=format&fit=crop&w=600&q=80',
-        songCount: 18,
-        isFeatured: true,
-        category: 'Prayer for Peace',
-        createdAt: '2026-07-05T08:00:00Z',
-    },
-    {
-        id: 'pl-3',
-        title: 'Strength in God',
-        description: 'Uplifting anthems of deliverance and holy victory.',
-        coverUrl: 'https://images.unsplash.com/photo-1464822759023-fed622ff2c3b?auto=format&fit=crop&w=600&q=80',
-        songCount: 15,
-        isFeatured: true,
-        category: 'Encouragement',
-        createdAt: '2026-07-10T08:00:00Z',
-    },
-    {
-        id: 'pl-4',
-        title: 'Deep Devotion',
-        description: 'Intimate acoustic worship for personal reflection time.',
-        coverUrl: 'https://images.unsplash.com/photo-1507692049790-de58290a4334?auto=format&fit=crop&w=600&q=80',
-        songCount: 12,
-        isFeatured: false,
-        category: 'Gratitude',
-        createdAt: '2026-07-12T08:00:00Z',
-    },
-]
-
-export const INITIAL_ARTISTS: WorshipArtist[] = [
-    {
-        id: 'art-1',
-        name: 'Brandon Lake',
-        imageUrl: 'https://images.unsplash.com/photo-1516450360452-9312f5e86fc7?auto=format&fit=crop&w=400&q=80',
-        tracksCount: 8,
-        bio: 'American Christian worship singer and songwriter.',
-    },
-    {
-        id: 'art-2',
-        name: 'Bethel Music',
-        imageUrl: 'https://images.unsplash.com/photo-1465847899084-d164df4dedc6?auto=format&fit=crop&w=400&q=80',
-        tracksCount: 14,
-        bio: 'Worship music ministry originating from Redding, California.',
-    },
-    {
-        id: 'art-3',
-        name: 'Hillsong Worship',
-        imageUrl: 'https://images.unsplash.com/photo-1511671782779-c97d3d27a1d4?auto=format&fit=crop&w=400&q=80',
-        tracksCount: 19,
-        bio: 'Praise and worship music group based in Sydney, Australia.',
-    },
-    {
-        id: 'art-4',
-        name: 'Sinach',
-        imageUrl: 'https://images.unsplash.com/photo-1534528741775-53994a69daeb?auto=format&fit=crop&w=400&q=80',
-        tracksCount: 6,
-        bio: 'Nigerian gospel music singer, songwriter, and senior worship leader.',
-    },
-    {
-        id: 'art-5',
-        name: 'Hillsong UNITED',
-        imageUrl: 'https://images.unsplash.com/photo-1501386761578-eac5c94b800a?auto=format&fit=crop&w=400&q=80',
-        tracksCount: 11,
-        bio: 'Contemporary worship band originating from Hillsong Church.',
-    },
-]
-
-export const INITIAL_SONGS: WorshipSong[] = [
-    {
-        id: 'song-1',
-        title: 'Gratitude',
-        artist: 'Brandon Lake',
-        category: 'Gratitude',
-        duration: '4:46',
-        audioUrl: 'https://www.soundhelix.com/examples/mp3/SoundHelix-Song-1.mp3',
-        coverUrl: 'https://images.unsplash.com/photo-1507692049790-de58290a4334?auto=format&fit=crop&w=400&q=80',
-        bibleVerse: 'Psalm 103:1',
-        bibleReference: 'Psalm 103:1 - Bless the Lord, O my soul, and all that is within me.',
-        playlistId: 'pl-1',
-        playlistTitle: 'Morning Worship',
-        status: 'Published',
-        scheduledDate: '2026-07-07T08:00:00Z',
-        isFeatured: true,
-        playsCount: 14250,
-        language: 'English',
-        description: 'A prayer of humble thanks for God’s steadfast love and abundant grace.',
-        createdAt: '2026-07-01T08:00:00Z',
-        updatedAt: '2026-07-01T08:00:00Z',
-    },
-    {
-        id: 'song-2',
-        title: 'Goodness of God',
-        artist: 'Bethel Music',
-        category: 'Prayer for Peace',
-        duration: '4:32',
-        audioUrl: 'https://www.soundhelix.com/examples/mp3/SoundHelix-Song-2.mp3',
-        coverUrl: 'https://images.unsplash.com/photo-1470240731273-7821a6eeb6bd?auto=format&fit=crop&w=400&q=80',
-        bibleVerse: 'Psalm 23:6',
-        bibleReference: 'Psalm 23:6 - Surely goodness and mercy shall follow me all the days of my life.',
-        playlistId: 'pl-1',
-        playlistTitle: 'Morning Worship',
-        status: 'Published',
-        scheduledDate: '2026-07-07T08:00:00Z',
-        isFeatured: true,
-        playsCount: 22800,
-        language: 'English',
-        description: 'Testimony anthem declaring the faithful kindness of the Lord through every season.',
-        createdAt: '2026-07-02T08:00:00Z',
-        updatedAt: '2026-07-02T08:00:00Z',
-    },
-    {
-        id: 'song-3',
-        title: 'What a Beautiful Name',
-        artist: 'Hillsong Worship',
-        category: 'Encouragement',
-        duration: '5:41',
-        audioUrl: 'https://www.soundhelix.com/examples/mp3/SoundHelix-Song-3.mp3',
-        coverUrl: 'https://images.unsplash.com/photo-1518531933037-91b2f5f229cc?auto=format&fit=crop&w=400&q=80',
-        bibleVerse: 'Colossians 1:16',
-        bibleReference: 'Colossians 1:16 - For by Him all things were created.',
-        playlistId: 'pl-2',
-        playlistTitle: 'Peace & Hope',
-        status: 'Published',
-        scheduledDate: '2026-07-12T00:00:00Z',
-        isFeatured: true,
-        playsCount: 31400,
-        language: 'English',
-        description: 'Exalting the matchless name and sovereign resurrection of Jesus Christ.',
-        createdAt: '2026-07-03T08:00:00Z',
-        updatedAt: '2026-07-03T08:00:00Z',
-    },
-    {
-        id: 'song-4',
-        title: 'Way Maker',
-        artist: 'Sinach',
-        category: 'Faith & Trust',
-        duration: '6:08',
-        audioUrl: 'https://www.soundhelix.com/examples/mp3/SoundHelix-Song-4.mp3',
-        coverUrl: 'https://images.unsplash.com/photo-1464822759023-fed622ff2c3b?auto=format&fit=crop&w=400&q=80',
-        bibleVerse: 'Isaiah 43:19',
-        bibleReference: 'Isaiah 43:19 - I will make a way in the wilderness and rivers in the desert.',
-        playlistId: 'pl-3',
-        playlistTitle: 'Strength in God',
-        status: 'Published',
-        scheduledDate: '2026-07-15T00:00:00Z',
-        isFeatured: true,
-        playsCount: 29500,
-        language: 'English',
-        description: 'Proclaiming God as miracle worker, promise keeper, and light in the darkness.',
-        createdAt: '2026-07-04T08:00:00Z',
-        updatedAt: '2026-07-04T08:00:00Z',
-    },
-    {
-        id: 'song-5',
-        title: 'Oceans (Where Feet May Fail)',
-        artist: 'Hillsong UNITED',
-        category: 'Prayer for Peace',
-        duration: '8:56',
-        audioUrl: 'https://www.soundhelix.com/examples/mp3/SoundHelix-Song-5.mp3',
-        coverUrl: 'https://images.unsplash.com/photo-1507525428034-b723cf961d3e?auto=format&fit=crop&w=400&q=80',
-        bibleVerse: 'Matthew 14:29',
-        bibleReference: 'Matthew 14:29 - Come, He said. Then Peter got down out of the boat.',
-        playlistId: 'pl-2',
-        playlistTitle: 'Peace & Hope',
-        status: 'Scheduled',
-        scheduledDate: '2026-08-01T00:00:00Z',
-        isFeatured: true,
-        playsCount: 45100,
-        language: 'English',
-        description: 'A prayer of surrender, stepping beyond comfort into deep oceans of faith.',
-        createdAt: '2026-07-05T08:00:00Z',
-        updatedAt: '2026-07-05T08:00:00Z',
-    },
-    {
-        id: 'song-6',
-        title: 'Morning Prayer',
-        artist: 'Mercy Daily Worship',
-        category: 'Gratitude',
-        duration: '3:50',
-        audioUrl: 'https://www.soundhelix.com/examples/mp3/SoundHelix-Song-6.mp3',
-        coverUrl: 'https://images.unsplash.com/photo-1519834785169-98be25ec3f84?auto=format&fit=crop&w=400&q=80',
-        bibleVerse: 'Psalm 5:3',
-        bibleReference: 'Psalm 5:3 - In the morning, Lord, you hear my voice.',
-        playlistId: 'pl-1',
-        playlistTitle: 'Morning Worship',
-        status: 'Published',
-        scheduledDate: '2026-07-07T08:00:00Z',
-        isFeatured: false,
-        playsCount: 8900,
-        language: 'English',
-        description: 'Morning prayer meditation melody for daily reflection and quiet time.',
-        createdAt: '2026-07-06T08:00:00Z',
-        updatedAt: '2026-07-06T08:00:00Z',
-    },
-]
-
-// Storage helpers with localStorage fallback for persistent client-side admin management
-const STORAGE_KEY_SONGS = 'mercy_worship_songs'
-const STORAGE_KEY_PLAYLISTS = 'mercy_worship_playlists'
-const STORAGE_KEY_BANNER = 'mercy_worship_banner'
-const STORAGE_KEY_ARTISTS = 'mercy_worship_artists'
-
-export function getStoredSongs(): WorshipSong[] {
-    if (typeof window === 'undefined') return INITIAL_SONGS
-    try {
-        const stored = localStorage.getItem(STORAGE_KEY_SONGS)
-        if (!stored) {
-            localStorage.setItem(STORAGE_KEY_SONGS, JSON.stringify(INITIAL_SONGS))
-            return INITIAL_SONGS
-        }
-        return JSON.parse(stored)
-    } catch {
-        return INITIAL_SONGS
-    }
+/** Per-language playlist block. Empty title on update = remove. */
+export type PlaylistTranslationInput = {
+    language: WorshipLanguage
+    title?: string
+    description?: string | null
 }
 
-export function saveStoredSongs(songs: WorshipSong[]) {
-    if (typeof window !== 'undefined') {
-        localStorage.setItem(STORAGE_KEY_SONGS, JSON.stringify(songs))
-    }
+export type PlaylistTranslationsSync = TranslationsSync<PlaylistTranslationInput>
+
+export type PlaylistInput = {
+    title: string
+    description?: string | null
+    coverUrl?: string | null
+    isFeatured?: boolean
+    translations?: PlaylistTranslationInput[] | PlaylistTranslationsSync
 }
 
-export function getStoredPlaylists(): WorshipPlaylist[] {
-    if (typeof window === 'undefined') return INITIAL_PLAYLISTS
-    try {
-        const stored = localStorage.getItem(STORAGE_KEY_PLAYLISTS)
-        if (!stored) {
-            localStorage.setItem(STORAGE_KEY_PLAYLISTS, JSON.stringify(INITIAL_PLAYLISTS))
-            return INITIAL_PLAYLISTS
-        }
-        return JSON.parse(stored)
-    } catch {
-        return INITIAL_PLAYLISTS
-    }
+export type PaginatedSongs = {
+    data: WorshipSong[]
+    page: number
+    limit: number
+    total: number
 }
 
-export function saveStoredPlaylists(playlists: WorshipPlaylist[]) {
-    if (typeof window !== 'undefined') {
-        localStorage.setItem(STORAGE_KEY_PLAYLISTS, JSON.stringify(playlists))
-    }
+export function listSongs(
+    params: {
+        page?: number
+        limit?: number
+        status?: WorshipStatus | 'ALL'
+        playlistId?: string
+        search?: string
+        language?: WorshipLanguage
+    } = {},
+) {
+    return request<PaginatedSongs>(`/worship/songs${toQuery(params)}`)
 }
 
-export function getStoredBanner(): WorshipHeroBanner {
-    if (typeof window === 'undefined') return INITIAL_FEATURED_BANNER
-    try {
-        const stored = localStorage.getItem(STORAGE_KEY_BANNER)
-        if (!stored) {
-            localStorage.setItem(STORAGE_KEY_BANNER, JSON.stringify(INITIAL_FEATURED_BANNER))
-            return INITIAL_FEATURED_BANNER
-        }
-        return JSON.parse(stored)
-    } catch {
-        return INITIAL_FEATURED_BANNER
-    }
+export function getSong(id: string, language?: WorshipLanguage) {
+    return request<WorshipSong>(
+        `/worship/songs/${id}${toQuery(language ? { language } : {})}`,
+    )
 }
 
-export function saveStoredBanner(banner: WorshipHeroBanner) {
-    if (typeof window !== 'undefined') {
-        localStorage.setItem(STORAGE_KEY_BANNER, JSON.stringify(banner))
-    }
+function withTranslations<T extends { translations?: unknown }>(input: T) {
+    const { translations } = input
+    if (translations === undefined) return input
+    // Normalize a bare array into the `{ items }` sync shape the API expects.
+    if (Array.isArray(translations)) return { ...input, translations: { items: translations } }
+    return input
 }
 
-export function getStoredArtists(): WorshipArtist[] {
-    if (typeof window === 'undefined') return INITIAL_ARTISTS
-    try {
-        const stored = localStorage.getItem(STORAGE_KEY_ARTISTS)
-        if (!stored) {
-            localStorage.setItem(STORAGE_KEY_ARTISTS, JSON.stringify(INITIAL_ARTISTS))
-            return INITIAL_ARTISTS
-        }
-        return JSON.parse(stored)
-    } catch {
-        return INITIAL_ARTISTS
-    }
+export function createSong(input: SongInput) {
+    return request<WorshipSong>('/worship/songs', {
+        method: 'POST',
+        body: JSON.stringify(withTranslations(input)),
+    })
 }
 
-export function saveStoredArtists(artists: WorshipArtist[]) {
-    if (typeof window !== 'undefined') {
-        localStorage.setItem(STORAGE_KEY_ARTISTS, JSON.stringify(artists))
-    }
+export function updateSong(id: string, input: Partial<SongInput>) {
+    return request<WorshipSong>(`/worship/songs/${id}`, {
+        method: 'PATCH',
+        body: JSON.stringify(withTranslations(input)),
+    })
 }
 
-// Async API Object complying with CRM Architecture
-export const worshipMusicApi = {
-    listSongs: async () => {
-        return getStoredSongs()
-    },
-    saveSong: async (song: WorshipSong) => {
-        const all = getStoredSongs()
-        const exists = all.some((s) => s.id === song.id)
-        const updated = exists ? all.map((s) => (s.id === song.id ? song : s)) : [song, ...all]
-        saveStoredSongs(updated)
-        return song
-    },
-    deleteSong: async (id: string) => {
-        const all = getStoredSongs()
-        const updated = all.filter((s) => s.id !== id)
-        saveStoredSongs(updated)
-    },
-    listPlaylists: async () => {
-        return getStoredPlaylists()
-    },
-    savePlaylist: async (playlist: WorshipPlaylist) => {
-        const all = getStoredPlaylists()
-        const exists = all.some((p) => p.id === playlist.id)
-        const updated = exists ? all.map((p) => (p.id === playlist.id ? playlist : p)) : [playlist, ...all]
-        saveStoredPlaylists(updated)
-        return playlist
-    },
-    deletePlaylist: async (id: string) => {
-        const all = getStoredPlaylists()
-        const updated = all.filter((p) => p.id !== id)
-        saveStoredPlaylists(updated)
-    },
-    getBanner: async () => {
-        return getStoredBanner()
-    },
-    saveBanner: async (banner: WorshipHeroBanner) => {
-        saveStoredBanner(banner)
-        return banner
-    },
-    listArtists: async () => {
-        return getStoredArtists()
-    },
+export function deleteSong(id: string) {
+    return request<void>(`/worship/songs/${id}`, { method: 'DELETE' })
 }
+
+export type WorshipStats = {
+    totalSongs: number
+    totalPlaylists: number
+    featuredCount: number
+    totalPlays: number
+}
+
+export function getWorshipStats() {
+    return request<WorshipStats>('/worship/songs/stats')
+}
+
+export function recordSongPlay(id: string, language?: WorshipLanguage) {
+    return request<{ id: string; playsCount: number; language: WorshipLanguage }>(
+        `/worship/songs/${id}/play${toQuery(language ? { language } : {})}`,
+        { method: 'POST' },
+    )
+}
+
+export function listPlaylists(language?: WorshipLanguage) {
+    return request<WorshipPlaylist[]>(
+        `/worship/playlists${toQuery(language ? { language } : {})}`,
+    )
+}
+
+export function getPlaylist(id: string, language?: WorshipLanguage) {
+    return request<WorshipPlaylist>(
+        `/worship/playlists/${id}${toQuery(language ? { language } : {})}`,
+    )
+}
+
+export function createPlaylist(input: PlaylistInput) {
+    return request<WorshipPlaylist>('/worship/playlists', {
+        method: 'POST',
+        body: JSON.stringify(withTranslations(input)),
+    })
+}
+
+export function updatePlaylist(id: string, input: Partial<PlaylistInput>) {
+    return request<WorshipPlaylist>(`/worship/playlists/${id}`, {
+        method: 'PATCH',
+        body: JSON.stringify(withTranslations(input)),
+    })
+}
+
+export function deletePlaylist(id: string) {
+    return request<void>(`/worship/playlists/${id}`, { method: 'DELETE' })
+}
+

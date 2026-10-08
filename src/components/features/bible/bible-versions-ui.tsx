@@ -384,7 +384,7 @@ export function BibleVersionsUI({
             {/* Main Tabs */}
             <Tabs value={tab} onValueChange={onTabChange} className="space-y-6">
                 <div className="border-b border-border">
-                    <TabsList className="bg-transparent p-0 gap-6 h-auto">
+                    <TabsList className="max-w-full overflow-x-auto bg-transparent p-0 gap-6 h-auto">
                         <TabsTrigger
                             value="curated"
                             className="rounded-none border-b-2 border-transparent data-[state=active]:border-primary data-[state=active]:bg-transparent px-1 pb-3 text-sm font-medium gap-2"

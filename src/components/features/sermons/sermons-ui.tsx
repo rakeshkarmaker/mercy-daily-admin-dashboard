@@ -1,9 +1,9 @@
-import { useMemo, useRef, useState } from 'react'
+import { useMemo, useState } from 'react'
 import { DataTable } from '@/components/shared/data-table'
+import { ImageUpload } from '@/components/shared/image-upload'
 import type { DataTableColumn } from '@/components/shared/data-table'
 import { PageHeader } from '@/components/shared/page-header'
 import { SearchInput } from '@/components/shared/search-input'
-import { Spinner } from '@/components/shared/spinner'
 import { TrashConfirm } from '@/components/shared/trash-confirm'
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
@@ -12,10 +12,11 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@
 import { Input } from '@/components/ui/input'
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs'
 import { Textarea } from '@/components/ui/textarea'
-import { Eye, Languages, Pencil, Plus, ThumbsUp, Trash2, Upload, X, Youtube } from 'lucide-react'
+import { Eye, Languages, Pencil, Plus, ThumbsUp, Trash2, Youtube } from 'lucide-react'
 import { toast } from 'sonner'
-import { deleteImage, uploadImage } from '@/api'
 import { resolveImage } from '@/api/base'
+import { LanguageViewFilter } from '@/components/shared/language-view-filter'
+import { CONTENT_LANGUAGES } from '@/lib/language'
 import type { Sermon, SermonInput, SermonLanguage, SermonStatus, SermonTranslationInput } from '@/api/sermons'
 
 type StatusFilter = SermonStatus | 'ALL'
@@ -28,9 +29,12 @@ export interface SermonsUIProps {
     limit: number
     searchQuery: string
     status: StatusFilter
+    /** Active content language — the server projects it onto every row. */
+    language: SermonLanguage
     onSearchChange: (value: string) => void
     onResetSearch: () => void
     onStatusChange: (value: StatusFilter) => void
+    onLanguageChange: (language: SermonLanguage) => void
     onCreateSermon: (input: SermonInput) => Promise<void>
     onUpdateSermon: (id: string, input: Partial<SermonInput>) => Promise<void>
     onDeleteSermon: (id: string) => Promise<void>
@@ -46,11 +50,7 @@ type LanguageFormState = {
 
 type LanguageForms = Record<SermonLanguage, LanguageFormState>
 
-const CONTENT_LANGUAGES: { value: SermonLanguage; label: string; native: string }[] = [
-    { value: 'en', label: 'EN', native: 'English' },
-    { value: 'esp', label: 'ESP', native: 'Español' },
-    { value: 'por', label: 'POR', native: 'Português' },
-]
+
 
 const emptyLanguageForm = (): LanguageFormState => ({ title: '', overview: '', thumbnailUrl: '', youtubeUrl: '' })
 
@@ -96,9 +96,11 @@ export function SermonsUI({
     limit,
     searchQuery,
     status,
+    language,
     onSearchChange,
     onResetSearch,
     onStatusChange,
+    onLanguageChange,
     onCreateSermon,
     onUpdateSermon,
     onDeleteSermon,
@@ -269,6 +271,7 @@ export function SermonsUI({
             <div className="flex flex-col gap-4 border-b border-border/50 pb-4 lg:flex-row lg:items-center lg:justify-between">
                 <PageHeader title="Sermons" description="Publish video sermons in English, Spanish and Portuguese, manage drafts and review engagement." />
                 <div className="flex flex-wrap items-center gap-3">
+                    <LanguageViewFilter value={language} onChange={onLanguageChange} />
                     <SearchInput
                         value={searchQuery}
                         onValueChange={onSearchChange}
@@ -283,7 +286,7 @@ export function SermonsUI({
             </div>
 
             <Tabs value={status} onValueChange={(value) => onStatusChange(value as StatusFilter)} className="w-full">
-                <TabsList variant="line" className="mb-3 w-full justify-start border-b border-border/50">
+                <TabsList variant="line" className="mb-3 w-full max-w-full justify-start overflow-x-auto border-b border-border/50">
                     <TabsTrigger value="ALL" className="flex-none px-4">
                         All
                     </TabsTrigger>
@@ -631,82 +634,19 @@ function Metric({ label, value }: { label: string; value: number }) {
 }
 
 /**
- * Thumbnail picker for the sermon form. Uploads through the backend
- * upload module (folder=sermons) and stores the returned /uploads/...
- * url — mirroring FormImage, but for plain controlled state instead of
- * the TanStack form field context.
+ * Thumbnail picker for the sermon form (folder=sermons), backed by the
+ * shared controlled ImageUpload.
  */
 function ThumbnailField({ value, disabled, onChange }: { value: string; disabled?: boolean; onChange: (url: string) => void }) {
-    const inputRef = useRef<HTMLInputElement>(null)
-    const [busy, setBusy] = useState(false)
-
-    const isUploadedFile = value.startsWith('/uploads/')
-    const preview = value ? (isUploadedFile ? resolveImage(value) : value) : null
-
-    const handleFileChange = async (event: React.ChangeEvent<HTMLInputElement>) => {
-        const file = event.target.files?.[0]
-        event.target.value = ''
-        if (!file) return
-        setBusy(true)
-        try {
-            onChange(await uploadImage(file, 'sermons'))
-        } catch (err) {
-            toast.error(err instanceof Error ? err.message : 'Upload failed')
-        } finally {
-            setBusy(false)
-        }
-    }
-
-    const handleRemove = async () => {
-        setBusy(true)
-        try {
-            if (isUploadedFile) await deleteImage(value)
-            onChange('')
-        } catch (err) {
-            toast.error(err instanceof Error ? err.message : 'Delete failed')
-        } finally {
-            setBusy(false)
-        }
-    }
-
     return (
-        <div className="grid gap-2">
-            <input
-                ref={inputRef}
-                type="file"
-                accept="image/png,image/jpeg,image/jpg,image/webp"
-                onChange={handleFileChange}
-                className="sr-only"
-                disabled={disabled || busy}
-                aria-label="Thumbnail image"
-            />
-            {!preview ? (
-                <button
-                    type="button"
-                    onClick={() => inputRef.current?.click()}
-                    disabled={disabled || busy}
-                    className="flex h-40 w-full flex-col items-center justify-center gap-2 rounded-md border-2 border-dashed border-primary bg-primary/10 text-center disabled:cursor-not-allowed disabled:opacity-60"
-                >
-                    <div className="flex size-10 items-center justify-center rounded-full bg-primary/10">
-                        {busy ? <Spinner /> : <Upload className="size-5 text-primary" />}
-                    </div>
-                    <p className="text-sm font-medium">Upload thumbnail (PNG, JPG, WEBP)</p>
-                </button>
-            ) : (
-                <div className="relative h-40 overflow-hidden rounded-md border-2 border-dashed border-primary">
-                    <img src={preview} alt="Sermon thumbnail" className="mx-auto h-full w-auto object-cover" />
-                    <Button
-                        variant="ghost"
-                        size="icon-sm"
-                        onClick={handleRemove}
-                        className="absolute right-2 top-2"
-                        disabled={disabled || busy}
-                    >
-                        {busy ? <Spinner /> : <X />}
-                    </Button>
-                </div>
-            )}
-        </div>
+        <ImageUpload
+            value={value}
+            onChange={onChange}
+            folder="sermons"
+            disabled={disabled}
+            label="Upload thumbnail (PNG, JPG, WEBP)"
+            alt="Sermon thumbnail"
+        />
     )
 }
 

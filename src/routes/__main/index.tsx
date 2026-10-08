@@ -56,9 +56,9 @@ function RouteComponent() {
     const pieData = useMemo(() => {
         if (!overview) return []
         return [
-            { name: 'Prayers', value: overview.engagementDistribution.prayers, color: 'var(--chart-1)' },
-            { name: 'Community', value: overview.engagementDistribution.community, color: 'var(--chart-2)' },
-            { name: 'Media/Views', value: overview.engagementDistribution.mediaViews, color: 'var(--chart-4)' },
+            { name: 'Prayers', value: overview.engagementDistribution.prayers, count: overview.engagementDistribution.prayersCount, color: 'var(--chart-1)' },
+            { name: 'Community', value: overview.engagementDistribution.community, count: overview.engagementDistribution.communityCount, color: 'var(--chart-2)' },
+            { name: 'Media/Views', value: overview.engagementDistribution.mediaViews, count: overview.engagementDistribution.mediaViewsCount, color: 'var(--chart-4)' },
         ]
     }, [overview])
 
@@ -268,7 +268,7 @@ function RouteComponent() {
                                             <div className="w-3 h-3 rounded bg-muted" style={{ backgroundColor: item.color }}></div>
                                             <span className="text-sm font-semibold text-chart-1">{item.name}</span>
                                         </div>
-                                        <span className="text-sm font-bold text-muted-foreground">({item.value}%)</span>
+                                        <span className="text-sm font-bold text-muted-foreground">({item.count.toLocaleString()} · {item.value}%)</span>
                                     </div>
                                 ))}
                             </div>

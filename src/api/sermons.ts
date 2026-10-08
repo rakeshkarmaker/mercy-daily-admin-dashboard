@@ -1,9 +1,10 @@
 import { request, toQuery } from '@/api/base'
+import type { ContentLanguage } from '@/lib/language'
 
 export type SermonStatus = 'DRAFT' | 'PUBLISHED' | 'ARCHIVED'
 
-/** Language of a sermon's content projection: en (canonical) | esp | por. */
-export type SermonLanguage = 'en' | 'esp' | 'por'
+/** Single shared language contract (en|esp|por) — see @/lib/language. */
+export type SermonLanguage = ContentLanguage
 
 export type SermonTopic = {
     id: string
@@ -75,6 +76,8 @@ export type PaginatedSermons = {
  * manage non-published sermons. `language` (en|esp|por) filters sermons
  * that have that language's content (en/default matches all).
  */
+export type { ContentLanguage } from '@/lib/language'
+
 export function listSermons(params: { page?: number; limit?: number; status?: SermonStatus | 'ALL'; language?: SermonLanguage } = {}) {
     return request<PaginatedSermons>(`/sermons${toQuery(params)}`)
 }

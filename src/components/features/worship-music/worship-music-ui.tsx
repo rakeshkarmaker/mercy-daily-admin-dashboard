@@ -3,8 +3,6 @@ import { DataTable } from '@/components/shared/data-table'
 import type { DataTableColumn } from '@/components/shared/data-table'
 import { PageHeader } from '@/components/shared/page-header'
 import { SearchInput } from '@/components/shared/search-input'
-import { StatCardsGrid } from '@/components/shared/stat-card'
-import type { StatCardProps } from '@/components/shared/stat-card'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Textarea } from '@/components/ui/textarea'
@@ -28,11 +26,19 @@ import {
     DialogTitle,
 } from '@/components/ui/dialog'
 import { TrashConfirm } from '@/components/shared/trash-confirm'
+import { resolveImage } from '@/api'
+import { CONTENT_LANGUAGES, languageLabel } from '@/lib/language'
+import type { ContentLanguage } from '@/lib/language'
+import { LanguageViewFilter } from '@/components/shared/language-view-filter'
+import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover'
+import { ImageUpload } from '@/components/shared/image-upload'
 import {
+    Check,
     CheckCircle2,
     Calendar,
+    ChevronsUpDown,
     Clock,
-    Headphones,
+    ImagePlus,
     ListMusic,
     Music,
     Pause,
@@ -45,263 +51,446 @@ import {
     Trash2,
     Volume2,
     X,
-    Radio,
     BookOpen,
-    Flame,
 } from 'lucide-react'
 import type {
-    WorshipSong,
+    PlaylistInput,
+    PlaylistTranslationInput,
+    SongInput,
+    SongTranslationInput,
     WorshipPlaylist,
-    WorshipHeroBanner,
-    WorshipArtist,
+    WorshipSong,
+    WorshipStats,
 } from '@/api/worship-music'
+import type { WorshipSongStatus } from '@/types/worship-music'
 
 export interface WorshipMusicUIProps {
     songs: WorshipSong[]
+    stats: WorshipStats
+    songsLoading?: boolean
+    page: number
+    limit: number
+    status: 'ALL' | 'DRAFT' | 'PUBLISHED' | 'SCHEDULED'
+    onStatusChange: (status: 'ALL' | 'DRAFT' | 'PUBLISHED' | 'SCHEDULED') => void
+    /** Active content language — the server projects it onto every row. */
+    language: ContentLanguage
+    onLanguageChange: (language: ContentLanguage) => void
     playlists: WorshipPlaylist[]
-    banner: WorshipHeroBanner
-    artists: WorshipArtist[]
     searchQuery: string
     onSearchChange: (value: string) => void
     onResetSearch: () => void
-    onSaveSong: (song: WorshipSong) => void
-    onDeleteSong: (id: string) => void
-    onSavePlaylist: (playlist: WorshipPlaylist) => void
-    onDeletePlaylist: (id: string) => void
-    onSaveBanner: (banner: WorshipHeroBanner) => void
+    onCreateSong: (input: SongInput) => Promise<void>
+    onUpdateSong: (id: string, input: Partial<SongInput>) => Promise<void>
+    onDeleteSong: (id: string) => Promise<void>
+    onRecordPlay: (id: string) => void
+    onCreatePlaylist: (input: PlaylistInput) => Promise<void>
+    onUpdatePlaylist: (id: string, input: Partial<PlaylistInput>) => Promise<void>
+    onDeletePlaylist: (id: string) => Promise<void>
 }
 
-type ContentLanguage = 'en' | 'es' | 'pt'
+/** Per-language content: the fields a translator actually rewrites. */
+type LanguageFormState = {
+    title: string
+    description: string
+    bibleReference: string
+}
 
-const CONTENT_LANGUAGES: { value: ContentLanguage; label: string }[] = [
-    { value: 'en', label: 'English' },
-    { value: 'es', label: 'Español' },
-    { value: 'pt', label: 'Português' },
-]
+type LanguageForms = Record<ContentLanguage, LanguageFormState>
+
+const emptyLanguageForm = (): LanguageFormState => ({
+    title: '',
+    description: '',
+    bibleReference: '',
+})
+
+/**
+ * Language blocks for a new/existing entity. English always exists (it is
+ * canonical and lives in the base columns); esp/por are optional and fall
+ * back to English per field when empty.
+ */
+const createEmptyLanguageForms = (): LanguageForms => ({
+    en: emptyLanguageForm(),
+    esp: emptyLanguageForm(),
+    por: emptyLanguageForm(),
+})
 
 type SongFormState = {
-    title: string
     artist: string
-    category: string
-    duration: string
+    /** Duration in decimal minutes (e.g. 4.5). Sent as whole seconds. */
+    durationMinutes: string
     audioUrl: string
     coverUrl: string
-    bibleReference: string
     playlistId: string
-    status: 'Published' | 'Scheduled' | 'Draft'
-    scheduledDate: string
+    status: WorshipSongStatus
     isFeatured: boolean
-    language: string
-    description: string
 }
 
 const emptySongForm: SongFormState = {
-    title: '',
     artist: 'Mercy Daily Worship',
-    category: 'Gratitude',
-    duration: '4:00',
-    audioUrl: 'https://www.soundhelix.com/examples/mp3/SoundHelix-Song-1.mp3',
-    coverUrl: 'https://images.unsplash.com/photo-1507692049790-de58290a4334?auto=format&fit=crop&w=400&q=80',
-    bibleReference: 'Psalm 103:1',
-    playlistId: 'pl-1',
-    status: 'Published',
-    scheduledDate: new Date().toISOString().slice(0, 10),
+    durationMinutes: '',
+    audioUrl: '',
+    coverUrl: '',
+    playlistId: '',
+    status: 'PUBLISHED',
     isFeatured: false,
-    language: 'English',
-    description: '',
 }
 
-const createEmptyLanguageForms = (): Record<ContentLanguage, SongFormState> => ({
-    en: { ...emptySongForm, language: 'English' },
-    es: { ...emptySongForm, language: 'Spanish' },
-    pt: { ...emptySongForm, language: 'Portuguese' },
+/** Language blocks from an existing song (en = top-level fields). */
+const songLanguageForms = (song: WorshipSong): LanguageForms => ({
+    en: {
+        title: song.title,
+        description: song.description ?? '',
+        bibleReference: song.bibleReference ?? '',
+    },
+    esp: (() => {
+        const t = song.translations.find((t) => t.language === 'esp')
+        return t
+            ? { title: t.title, description: t.description ?? '', bibleReference: t.bibleReference ?? '' }
+            : emptyLanguageForm()
+    })(),
+    por: (() => {
+        const t = song.translations.find((t) => t.language === 'por')
+        return t
+            ? { title: t.title, description: t.description ?? '', bibleReference: t.bibleReference ?? '' }
+            : emptyLanguageForm()
+    })(),
 })
+
+/**
+ * esp/por sync blocks. A block with a title upserts that language; an empty
+ * title on update removes the stored translation.
+ */
+function toSongTranslations(
+    forms: LanguageForms,
+    editing: boolean,
+): SongTranslationInput[] {
+    const items: SongTranslationInput[] = []
+    for (const language of ['esp', 'por'] as const) {
+        const form = forms[language]
+        if (form.title.trim()) {
+            items.push({
+                language,
+                title: form.title.trim(),
+                description: form.description.trim() || null,
+                bibleReference: form.bibleReference.trim() || null,
+            })
+        } else if (editing) {
+            items.push({ language })
+        }
+    }
+    return items
+}
+
+/** Decimal minutes (4.5) → whole seconds (270). */
+function minutesToSeconds(value: string): number {
+    const minutes = Number.parseFloat(value)
+    if (!Number.isFinite(minutes) || minutes < 0) return 0
+    return Math.round(minutes * 60)
+}
+
+/** Stored seconds (270) → decimal minutes input value (4.5). */
+function secondsToMinutes(totalSeconds: number): string {
+    if (!Number.isFinite(totalSeconds) || totalSeconds <= 0) return ''
+    return String(Math.round((totalSeconds / 60) * 100) / 100)
+}
+
+/** Language blocks for a playlist (en = top-level fields). */
+const playlistLanguageForms = (playlist: WorshipPlaylist): LanguageForms => ({
+    en: {
+        title: playlist.title,
+        description: playlist.description ?? '',
+        bibleReference: '',
+    },
+    esp: (() => {
+        const t = playlist.translations.find((t) => t.language === 'esp')
+        return t ? { title: t.title, description: t.description ?? '', bibleReference: '' } : emptyLanguageForm()
+    })(),
+    por: (() => {
+        const t = playlist.translations.find((t) => t.language === 'por')
+        return t ? { title: t.title, description: t.description ?? '', bibleReference: '' } : emptyLanguageForm()
+    })(),
+})
+
+type PlaylistFormState = PlaylistInput & { coverUrl: string; description: string; isFeatured: boolean }
+
+/** True when the row actually carries content in that language. */
+function hasSongLanguage(song: WorshipSong, language: ContentLanguage): boolean {
+    if (language === 'en') return true
+    return song.translations.some((t) => t.language === language)
+}
+
+function hasPlaylistLanguage(playlist: WorshipPlaylist, language: ContentLanguage): boolean {
+    if (language === 'en') return true
+    return playlist.translations.some((t) => t.language === language)
+}
+
+/** Small language availability dot for title cells and cards. */
+function LanguageDot({ language, available }: { language: ContentLanguage; available: boolean }) {
+    const label = CONTENT_LANGUAGES.find((l) => l.value === language)?.label ?? language
+    return (
+        <span
+            className={`rounded px-1 py-px text-[10px] font-semibold tracking-wide ${
+                available ? 'bg-primary/10 text-primary' : 'bg-muted text-muted-foreground/50 line-through'
+            }`}
+        >
+            {label}
+        </span>
+    )
+}
+
+/** esp/por playlist sync blocks (empty title on update removes the row). */
+function toPlaylistTranslations(forms: LanguageForms, editing: boolean): PlaylistTranslationInput[] {
+    const items: PlaylistTranslationInput[] = []
+    for (const language of ['esp', 'por'] as const) {
+        const form = forms[language]
+        if (form.title.trim()) {
+            items.push({
+                language,
+                title: form.title.trim(),
+                description: form.description.trim() || null,
+            })
+        } else if (editing) {
+            items.push({ language })
+        }
+    }
+    return items
+}
+
+/** A language tab strip shared by the song/playlist dialogs. */
+function LanguageTabs({
+    value,
+    forms,
+    field2Label = 'Bible Reference',
+    field3Label = 'Description',
+    onChange,
+    onFormChange,
+}: {
+    value: ContentLanguage
+    forms: LanguageForms
+    field2Label?: string | null
+    field3Label?: string
+    onChange: (language: ContentLanguage) => void
+    onFormChange: (language: ContentLanguage, form: LanguageFormState) => void
+}) {
+    return (
+        <Tabs value={value} onValueChange={(v) => onChange(v as ContentLanguage)} className="gap-3">
+            <TabsList className="grid h-10 w-full grid-cols-3">
+                {CONTENT_LANGUAGES.map((language) => (
+                    <TabsTrigger key={language.value} value={language.value} className="gap-1.5">
+                        {language.label}
+                        {language.value !== 'en' && forms[language.value].title.trim() && (
+                            <span className="inline-block size-1.5 rounded-full bg-primary" aria-hidden />
+                        )}
+                    </TabsTrigger>
+                ))}
+            </TabsList>
+            {CONTENT_LANGUAGES.map((language) => {
+                const form = forms[language.value]
+                const isEnglish = language.value === 'en'
+                const set = (key: keyof LanguageFormState, next: string) =>
+                    onFormChange(language.value, { ...form, [key]: next })
+                return (
+                    <TabsContent key={language.value} value={language.value} className="mt-0">
+                        <div className="space-y-3">
+                            <p className="text-[11px] text-muted-foreground">
+                                {isEnglish
+                                    ? 'Canonical English content, stored in the base fields.'
+                                    : `Optional ${languageLabel(language.value)} translation. Leave the title empty to remove it; empty fields fall back to English.`}
+                            </p>
+                            <div className="grid gap-1.5">
+                                <Label className="text-xs font-medium">
+                                    Title {isEnglish && <span className="text-destructive">*</span>}
+                                </Label>
+                                <Input
+                                    value={form.title}
+                                    onChange={(e) => set('title', e.target.value)}
+                                    placeholder={isEnglish ? 'e.g. Goodness of God' : 'Translated title'}
+                                    aria-label={`Title (${language.label})`}
+                                />
+                            </div>
+                            {field2Label !== null && (
+                                <div className="grid gap-1.5">
+                                    <Label className="text-xs font-medium">{field2Label}</Label>
+                                    <Input
+                                        value={form.bibleReference}
+                                        onChange={(e) => set('bibleReference', e.target.value)}
+                                        placeholder={field2Label === 'Button label' ? 'e.g. Play Now' : 'e.g. Psalm 23:6'}
+                                        aria-label={`${field2Label} (${language.label})`}
+                                    />
+                                </div>
+                            )}
+                            <div className="grid gap-1.5">
+                                <Label className="text-xs font-medium">{field3Label}</Label>
+                                <Textarea
+                                    rows={2}
+                                    value={form.description}
+                                    onChange={(e) => set('description', e.target.value)}
+                                    placeholder={
+                                        language.value === 'en' ? 'Background or prayer focus...' : 'Translated text'
+                                    }
+                                    aria-label={`${field3Label} (${language.label})`}
+                                />
+                            </div>
+                        </div>
+                    </TabsContent>
+                )
+            })}
+        </Tabs>
+    )
+}
 
 export function WorshipMusicUI({
     songs,
+    stats,
+    songsLoading = false,
+    page,
+    limit,
+    status,
+    onStatusChange,
+    language,
+    onLanguageChange,
     playlists,
-    banner,
-    artists,
     searchQuery,
     onSearchChange,
     onResetSearch,
-    onSaveSong,
+    onCreateSong,
+    onUpdateSong,
     onDeleteSong,
-    onSavePlaylist,
+    onRecordPlay,
+    onCreatePlaylist,
+    onUpdatePlaylist,
     onDeletePlaylist,
-    onSaveBanner,
 }: WorshipMusicUIProps) {
-    const [mainTab, setMainTab] = useState<'songs' | 'playlists' | 'banner' | 'artists'>('songs')
-    const [statusFilter, setStatusFilter] = useState<'all' | 'Published' | 'Scheduled' | 'Draft'>('all')
+    const [mainTab, setMainTab] = useState<'songs' | 'playlists'>('songs')
 
     // Modals
     const [songFormOpen, setSongFormOpen] = useState(false)
     const [editingSong, setEditingSong] = useState<WorshipSong | null>(null)
-    const [editSongForm, setEditSongForm] = useState<SongFormState>(emptySongForm)
-    const [languageSongForms, setLanguageSongForms] = useState<Record<ContentLanguage, SongFormState>>(createEmptyLanguageForms)
-    const [activeSongLanguage, setActiveSongLanguage] = useState<ContentLanguage>('en')
-    const songForm = editingSong ? editSongForm : languageSongForms[activeSongLanguage]
-    const setSongForm = (next: SongFormState | ((previous: SongFormState) => SongFormState)) => {
-        if (editingSong) {
-            setEditSongForm((previous) => typeof next === 'function' ? next(previous) : next)
-        } else {
-            setLanguageSongForms((previous) => ({
-                ...previous,
-                [activeSongLanguage]: typeof next === 'function' ? next(previous[activeSongLanguage]) : next,
-            }))
-        }
-    }
+    const [songForm, setSongForm] = useState<SongFormState>(emptySongForm)
+    const [songLangForms, setSongLangForms] = useState<LanguageForms>(createEmptyLanguageForms)
+    const [songLang, setSongLang] = useState<ContentLanguage>('en')
     const [deletingSong, setDeletingSong] = useState<WorshipSong | null>(null)
 
     const [playlistFormOpen, setPlaylistFormOpen] = useState(false)
     const [editingPlaylist, setEditingPlaylist] = useState<WorshipPlaylist | null>(null)
-    const [playlistForm, setPlaylistForm] = useState<WorshipPlaylist>({
-        id: '',
+    const [playlistForm, setPlaylistForm] = useState<PlaylistFormState>({
         title: '',
         description: '',
         coverUrl: '',
-        songCount: 0,
-        isFeatured: false,
-        category: 'Worship',
-        createdAt: new Date().toISOString(),
+        isFeatured: true,
     })
+    const [playlistLangForms, setPlaylistLangForms] = useState<LanguageForms>(createEmptyLanguageForms)
+    const [playlistLang, setPlaylistLang] = useState<ContentLanguage>('en')
     const [deletingPlaylist, setDeletingPlaylist] = useState<WorshipPlaylist | null>(null)
-
-    // Banner Edit State
-    const [bannerEditing, setBannerEditing] = useState<WorshipHeroBanner>(banner)
 
     // Audio Playback Preview State (App replica!)
     const [currentPlaying, setCurrentPlaying] = useState<WorshipSong | null>(null)
     const [isPlaying, setIsPlaying] = useState(false)
     const audioRef = useRef<HTMLAudioElement | null>(null)
 
-    // Filter songs by search and status
+    // Filter songs by search (status is server-filtered via the query key)
     const filteredSongs = useMemo(() => {
-        let result = songs
-        if (statusFilter !== 'all') {
-            result = result.filter((s) => s.status === statusFilter)
-        }
-        if (searchQuery.trim()) {
-            const q = searchQuery.toLowerCase()
-            result = result.filter(
-                (s) =>
-                    s.title.toLowerCase().includes(q) ||
-                    s.artist.toLowerCase().includes(q) ||
-                    s.category.toLowerCase().includes(q) ||
-                    (s.bibleReference ?? '').toLowerCase().includes(q),
-            )
-        }
-        return result
-    }, [songs, statusFilter, searchQuery])
+        // Playlist is the category in music context.
+        const playlistTitleById = new Map(playlists.map((p) => [p.id, p.title]))
+        if (!searchQuery.trim()) return songs
+        const q = searchQuery.toLowerCase()
+        return songs.filter((s) =>
+            [
+                s.title,
+                s.artist,
+                s.bibleReference ?? '',
+                s.description ?? '',
+                s.playlist?.title ?? playlistTitleById.get(s.playlist?.id ?? '') ?? '',
+            ].some((value) => value.toLowerCase().includes(q)),
+        )
+    }, [songs, playlists, searchQuery])
 
-    // Stat Cards
-    const stats = useMemo(() => {
-        const totalSongs = songs.length
-        const totalPlaylists = playlists.length
-        const featuredCount = songs.filter((s) => s.isFeatured).length
-        const totalPlays = songs.reduce((acc, s) => acc + (s.playsCount || 0), 0)
-        return { totalSongs, totalPlaylists, featuredCount, totalPlays }
-    }, [songs, playlists])
+    // Stat Cards (library-wide totals from the server)
 
-    const statCards = useMemo<StatCardProps[]>(
-        () => [
-            {
-                label: 'Total Worship Songs',
-                value: stats.totalSongs,
-                icon: Music,
-                color: 'emerald',
-            },
-            {
-                label: 'Worship Playlists',
-                value: stats.totalPlaylists,
-                icon: ListMusic,
-                color: 'blue',
-            },
-            {
-                label: 'Featured Top Songs',
-                value: stats.featuredCount,
-                icon: Sparkles,
-                color: 'amber',
-            },
-            {
-                label: 'Total Streams / Plays',
-                value: stats.totalPlays.toLocaleString(),
-                icon: Headphones,
-                color: 'pink',
-            },
-        ],
-        [stats],
-    )
+    // const statCards = useMemo<StatCardProps[]>(
+    //     () => [
+    //         {
+    //             label: 'Total Worship Songs',
+    //             value: stats.totalSongs,
+    //             icon: Music,
+    //             color: 'emerald',
+    //         },
+    //         {
+    //             label: 'Worship Playlists',
+    //             value: stats.totalPlaylists,
+    //             icon: ListMusic,
+    //             color: 'blue',
+    //         },
+    //         {
+    //             label: 'Featured Songs',
+    //             value: stats.featuredCount,
+    //             icon: Sparkles,
+    //             color: 'amber',
+    //         },
+    //         {
+    //             label: 'Total Streams / Plays',
+    //             value: stats.totalPlays.toLocaleString(),
+    //             icon: Headphones,
+    //             color: 'pink',
+    //         },
+    //     ],
+    //     [stats],
+    // )
 
     const openCreateSong = () => {
         setEditingSong(null)
-        setEditSongForm(emptySongForm)
-        setLanguageSongForms(createEmptyLanguageForms())
-        setActiveSongLanguage('en')
+        setSongForm({ ...emptySongForm, playlistId: playlists[0]?.id ?? '' })
+        setSongLangForms(createEmptyLanguageForms())
+        setSongLang('en')
         setSongFormOpen(true)
     }
 
     const openEditSong = (song: WorshipSong) => {
         setEditingSong(song)
-        setActiveSongLanguage('en')
-        setEditSongForm({
-            title: song.title,
+        setSongForm({
             artist: song.artist,
-            category: song.category,
-            duration: song.duration,
+            durationMinutes: secondsToMinutes(song.durationSeconds),
             audioUrl: song.audioUrl ?? '',
             coverUrl: song.coverUrl ?? '',
-            bibleReference: song.bibleReference ?? song.bibleVerse ?? '',
-            playlistId: song.playlistId ?? 'pl-1',
+            playlistId: song.playlist?.id ?? '',
             status: song.status,
-            scheduledDate: song.scheduledDate ? song.scheduledDate.slice(0, 10) : new Date().toISOString().slice(0, 10),
             isFeatured: song.isFeatured,
-            language: song.language ?? 'English',
-            description: song.description ?? '',
         })
+        setSongLangForms(songLanguageForms(song))
+        setSongLang('en')
         setSongFormOpen(true)
     }
 
-    const submitSongForm = () => {
-        if (!songForm.title.trim() || !songForm.artist.trim()) return
+    const submitSongForm = async () => {
+        const en = songLangForms.en
+        if (!en.title.trim() || !songForm.artist.trim()) return
 
-        const matchedPlaylist = playlists.find((p) => p.id === songForm.playlistId)
-
-        const songToSave: WorshipSong = {
-            id: editingSong ? editingSong.id : `song-${Date.now()}`,
-            title: songForm.title.trim(),
-            artist: songForm.artist.trim(),
-            category: songForm.category,
-            duration: songForm.duration.trim() || '4:00',
-            audioUrl: songForm.audioUrl.trim(),
-            coverUrl: songForm.coverUrl.trim(),
-            bibleReference: songForm.bibleReference.trim(),
-            bibleVerse: songForm.bibleReference.trim(),
-            playlistId: songForm.playlistId,
-            playlistTitle: matchedPlaylist?.title ?? 'Worship',
+        const input: SongInput = {
+            title: en.title.trim(),
+            artist: songForm.artist.trim() || undefined,
+            durationSeconds: minutesToSeconds(songForm.durationMinutes),
+            audioUrl: songForm.audioUrl.trim() || null,
+            coverUrl: songForm.coverUrl.trim() || null,
+            description: en.description.trim() || null,
+            bibleReference: en.bibleReference.trim() || null,
+            playlistId: songForm.playlistId || null,
             status: songForm.status,
-            scheduledDate: songForm.scheduledDate ? `${songForm.scheduledDate}T00:00:00Z` : undefined,
             isFeatured: songForm.isFeatured,
-            playsCount: editingSong ? editingSong.playsCount : 0,
-            language: editingSong ? songForm.language : languageSongForms[activeSongLanguage].language,
-            description: songForm.description,
-            createdAt: editingSong ? editingSong.createdAt : new Date().toISOString(),
-            updatedAt: new Date().toISOString(),
+            translations: {
+                items: toSongTranslations(songLangForms, Boolean(editingSong)),
+            },
         }
 
-        onSaveSong(songToSave)
+        if (editingSong) await onUpdateSong(editingSong.id, input)
+        else await onCreateSong(input)
         setSongFormOpen(false)
     }
 
     const toggleSongFeatured = (song: WorshipSong) => {
-        onSaveSong({
-            ...song,
-            isFeatured: !song.isFeatured,
-            updatedAt: new Date().toISOString(),
-        })
+        onUpdateSong(song.id, { isFeatured: !song.isFeatured })
     }
 
-    // Audio playback toggle
+    // Audio playback toggle (starting a new track counts a play)
     const handlePlaySong = (song: WorshipSong) => {
         if (currentPlaying?.id === song.id) {
             if (isPlaying) {
@@ -314,6 +503,7 @@ export function WorshipMusicUI({
         } else {
             setCurrentPlaying(song)
             setIsPlaying(true)
+            onRecordPlay(song.id)
         }
     }
 
@@ -335,7 +525,7 @@ export function WorshipMusicUI({
                         <div className="flex items-center gap-3 min-w-56">
                             <div className="relative size-10 rounded-lg overflow-hidden bg-muted shrink-0 group border border-border/50">
                                 <img
-                                    src={row.coverUrl || 'https://images.unsplash.com/photo-1507692049790-de58290a4334?auto=format&fit=crop&w=100&q=80'}
+                                    src={resolveImage(row.coverUrl)}
                                     alt={row.title}
                                     className="size-full object-cover"
                                 />
@@ -358,12 +548,17 @@ export function WorshipMusicUI({
                                     {row.title}
                                     {row.isFeatured && (
                                         <Badge className="bg-warning/15 text-warning border-warning/30 text-[10px] h-4 px-1.5">
-                                            <Sparkles className="size-2.5 mr-0.5" /> Top
+                                            <Sparkles className="size-2.5 mr-0.5" /> Featured
                                         </Badge>
                                     )}
                                 </span>
                                 <span className="text-xs text-muted-foreground flex items-center gap-1.5">
                                     <Clock className="size-3" /> {row.duration}
+                                    <span className="flex items-center gap-0.5" title={`Languages: ${CONTENT_LANGUAGES.filter((l) => hasSongLanguage(row, l.value)).map((l) => l.native).join(', ')}`}>
+                                        {CONTENT_LANGUAGES.map((l) => (
+                                            <LanguageDot key={l.value} language={l.value} available={hasSongLanguage(row, l.value)} />
+                                        ))}
+                                    </span>
                                 </span>
                             </div>
                         </div>
@@ -380,11 +575,11 @@ export function WorshipMusicUI({
                 ),
             },
             {
-                key: 'category',
-                header: 'CATEGORY',
+                key: 'playlist',
+                header: 'PLAYLIST',
                 render: (row) => (
                     <Badge variant="outline" className="text-xs bg-muted/30">
-                        {row.category}
+                        {row.playlist?.title ?? '—'}
                     </Badge>
                 ),
             },
@@ -394,26 +589,16 @@ export function WorshipMusicUI({
                 render: (row) => (
                     <div className="flex items-center gap-1.5 text-xs text-muted-foreground max-w-56 truncate">
                         <BookOpen className="size-3 shrink-0 text-primary" />
-                        <span className="truncate">{row.bibleReference || row.bibleVerse || '—'}</span>
+                        <span className="truncate">{row.bibleReference || '—'}</span>
                     </div>
                 ),
             },
             {
-                key: 'scheduledDate',
-                header: 'SCHEDULED DATE',
+                key: 'plays',
+                header: 'PLAYS',
                 render: (row) => (
-                    <span className="text-xs text-muted-foreground whitespace-nowrap">
-                        {row.scheduledDate
-                            ? new Date(row.scheduledDate).toLocaleDateString(undefined, {
-                                  month: 'short',
-                                  day: 'numeric',
-                                  year: 'numeric',
-                              })
-                            : new Date(row.createdAt).toLocaleDateString(undefined, {
-                                  month: 'short',
-                                  day: 'numeric',
-                                  year: 'numeric',
-                              })}
+                    <span className="text-xs text-muted-foreground tabular-nums whitespace-nowrap">
+                        {(row.playsCount ?? 0).toLocaleString()}
                     </span>
                 ),
             },
@@ -421,14 +606,14 @@ export function WorshipMusicUI({
                 key: 'status',
                 header: 'STATUS',
                 render: (row) => {
-                    if (row.status === 'Published') {
+                    if (row.status === 'PUBLISHED') {
                         return (
                             <Badge className="bg-success/10 text-success border-success/20 gap-1">
                                 <CheckCircle2 className="size-3" /> Published
                             </Badge>
                         )
                     }
-                    if (row.status === 'Scheduled') {
+                    if (row.status === 'SCHEDULED') {
                         return (
                             <Badge variant="outline" className="text-info border-info/30 bg-info/10 gap-1">
                                 <Calendar className="size-3" /> Scheduled
@@ -459,7 +644,7 @@ export function WorshipMusicUI({
                             {currentPlaying?.id === row.id && isPlaying ? <Pause /> : <Play />}
                         </ActionButton>
                         <ActionButton
-                            label={row.isFeatured ? 'Remove from Top Worship' : 'Pin to Top Worship Songs'}
+                            label={row.isFeatured ? 'Remove from Featured Music' : 'Pin to Featured Music'}
                             onClick={() => toggleSongFeatured(row)}
                             className={row.isFeatured ? 'text-warning hover:bg-warning/10' : 'text-muted-foreground hover:bg-muted'}
                         >
@@ -487,7 +672,7 @@ export function WorshipMusicUI({
         <div className="space-y-6 pb-24">
             <PageHeader
                 title="Worship Music"
-                description="Manage praise and worship audio tracks, featured playlists, and artist profiles featured on the mobile app."
+                description="Manage praise and worship audio tracks and playlists on the mobile app."
             >
                 <div className="flex items-center gap-2">
                     <Button onClick={openCreateSong} className="gap-2 bg-primary hover:bg-primary/90 text-primary-foreground cursor-pointer shadow-sm">
@@ -496,7 +681,7 @@ export function WorshipMusicUI({
                 </div>
             </PageHeader>
 
-            <StatCardsGrid cards={statCards} />
+            {/* <StatCardsGrid cards={statCards} /> */}
 
             {/* View Switching Tabs */}
             <div className="flex flex-col sm:flex-row items-stretch sm:items-center justify-between gap-4">
@@ -506,28 +691,23 @@ export function WorshipMusicUI({
                             <Music className="size-4" /> Songs Library
                         </TabsTrigger>
                         <TabsTrigger value="playlists" className="gap-1.5">
-                            <ListMusic className="size-4" /> Popular Playlists
-                        </TabsTrigger>
-                        <TabsTrigger value="banner" className="gap-1.5">
-                            <Flame className="size-4" /> Featured Hero Banner
-                        </TabsTrigger>
-                        <TabsTrigger value="artists" className="gap-1.5">
-                            <Radio className="size-4" /> Artists
+                            <ListMusic className="size-4" /> Featured Playlists
                         </TabsTrigger>
                     </TabsList>
                 </Tabs>
+                <LanguageViewFilter value={language} onChange={onLanguageChange} />
 
                 {mainTab === 'songs' && (
                     <div className="flex items-center gap-3">
-                        <Select value={statusFilter} onValueChange={(val) => setStatusFilter(val as any)}>
+                        <Select value={status} onValueChange={(val) => onStatusChange(val as typeof status)}>
                             <SelectTrigger className="w-36">
                                 <SelectValue placeholder="Status: All" />
                             </SelectTrigger>
                             <SelectContent>
-                                <SelectItem value="all">Status : All</SelectItem>
-                                <SelectItem value="Published">Published</SelectItem>
-                                <SelectItem value="Scheduled">Scheduled</SelectItem>
-                                <SelectItem value="Draft">Draft</SelectItem>
+                                <SelectItem value="ALL">Status : All</SelectItem>
+                                <SelectItem value="PUBLISHED">Published</SelectItem>
+                                <SelectItem value="SCHEDULED">Scheduled</SelectItem>
+                                <SelectItem value="DRAFT">Draft</SelectItem>
                             </SelectContent>
                         </Select>
 
@@ -554,9 +734,10 @@ export function WorshipMusicUI({
                     <DataTable
                         columns={songColumns}
                         data={filteredSongs}
-                        total={filteredSongs.length}
-                        page={1}
-                        limit={filteredSongs.length || 10}
+                        loading={songsLoading}
+                        total={searchQuery.trim() ? filteredSongs.length : stats.totalSongs}
+                        page={page}
+                        limit={limit}
                         noun="worship tracks"
                         onReset={onResetSearch}
                         emptyIcon={<Music className="size-8 text-muted-foreground" />}
@@ -564,12 +745,12 @@ export function WorshipMusicUI({
                 </div>
             )}
 
-            {/* Tab 2: Popular Playlists */}
+            {/* Tab 2: Featured Playlists */}
             {mainTab === 'playlists' && (
                 <div className="space-y-4">
                     <div className="flex items-center justify-between">
                         <div>
-                            <h3 className="text-base font-semibold text-foreground">Popular Playlists</h3>
+                            <h3 className="text-base font-semibold text-foreground">Featured Playlists</h3>
                             <p className="text-xs text-muted-foreground">
                                 These playlists are displayed in the carousel on the mobile app home screen.
                             </p>
@@ -579,15 +760,13 @@ export function WorshipMusicUI({
                             onClick={() => {
                                 setEditingPlaylist(null)
                                 setPlaylistForm({
-                                    id: `pl-${Date.now()}`,
                                     title: '',
                                     description: '',
                                     coverUrl: '',
-                                    songCount: 0,
                                     isFeatured: true,
-                                    category: 'Worship',
-                                    createdAt: new Date().toISOString(),
                                 })
+                                setPlaylistLangForms(createEmptyLanguageForms())
+                                setPlaylistLang('en')
                                 setPlaylistFormOpen(true)
                             }}
                             className="gap-1.5"
@@ -603,13 +782,18 @@ export function WorshipMusicUI({
                                 className="group relative rounded-2xl overflow-hidden border border-border/60 bg-card shadow-sm hover:shadow-md transition-all flex flex-col"
                             >
                                 <div className="relative aspect-4/3 overflow-hidden bg-muted">
-                                    <img src={pl.coverUrl} alt={pl.title} className="size-full object-cover group-hover:scale-105 transition-transform duration-300" />
+                                    <img src={resolveImage(pl.coverUrl)} alt={pl.title} className="size-full object-cover group-hover:scale-105 transition-transform duration-300" />
                                     <div className="absolute inset-0 bg-gradient-to-t from-black/80 via-black/20 to-transparent flex flex-col justify-end p-3">
                                         <h4 className="font-bold text-white text-base leading-tight drop-shadow-sm">
                                             {pl.title}
                                         </h4>
                                         <span className="text-xs text-white/80 font-medium">
                                             {pl.songCount} songs
+                                        </span>
+                                        <span className="mt-1 flex items-center gap-0.5">
+                                            {CONTENT_LANGUAGES.map((l) => (
+                                                <LanguageDot key={l.value} language={l.value} available={hasPlaylistLanguage(pl, l.value)} />
+                                            ))}
                                         </span>
                                     </div>
                                     {pl.isFeatured && (
@@ -623,15 +807,22 @@ export function WorshipMusicUI({
                                         {pl.description}
                                     </p>
                                     <div className="flex items-center justify-between pt-2 border-t border-border/40">
-                                        <Badge variant="outline" className="text-[10px]">
-                                            {pl.category}
-                                        </Badge>
+                                        <span className="text-[11px] text-muted-foreground">
+                                            {pl.songCount} {pl.songCount === 1 ? 'track' : 'tracks'}
+                                        </span>
                                         <div className="flex items-center gap-1">
                                             <ActionButton
                                                 label="Edit playlist"
                                                 onClick={() => {
                                                     setEditingPlaylist(pl)
-                                                    setPlaylistForm(pl)
+                                                    setPlaylistForm({
+                                                        title: pl.title,
+                                                        description: pl.description ?? '',
+                                                        coverUrl: pl.coverUrl ?? '',
+                                                        isFeatured: pl.isFeatured,
+                                                    })
+                                                    setPlaylistLangForms(playlistLanguageForms(pl))
+                                                    setPlaylistLang('en')
                                                     setPlaylistFormOpen(true)
                                                 }}
                                             >
@@ -653,169 +844,36 @@ export function WorshipMusicUI({
                 </div>
             )}
 
-            {/* Tab 3: Featured Hero Banner Editor */}
-            {mainTab === 'banner' && (
-                <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 items-start">
-                    {/* Live Mobile Preview */}
-                    <div className="space-y-3">
-                        <h3 className="font-semibold text-foreground text-sm flex items-center gap-1.5">
-                            <Sparkles className="size-4 text-warning" /> Mobile App Live Banner Preview
-                        </h3>
-                        <div className="rounded-3xl border-2 border-border p-4 bg-muted/20 flex flex-col items-center">
-                            <div className="w-full max-w-sm rounded-2xl overflow-hidden shadow-xl border border-border/80 relative aspect-16/10 group">
-                                <img
-                                    src={bannerEditing.coverUrl}
-                                    alt={bannerEditing.title}
-                                    className="size-full object-cover"
-                                />
-                                <div className="absolute inset-0 bg-gradient-to-r from-black/80 via-black/50 to-transparent p-5 flex flex-col justify-end">
-                                    <h2 className="text-white text-xl font-bold leading-tight mb-1">
-                                        {bannerEditing.title}
-                                    </h2>
-                                    <p className="text-white/80 text-xs mb-3 line-clamp-2">
-                                        {bannerEditing.subtitle}
-                                    </p>
-                                    <Button
-                                        size="sm"
-                                        className="w-fit bg-primary hover:bg-primary/90 text-primary-foreground rounded-full text-xs px-4 h-8 gap-1.5 shadow"
-                                    >
-                                        <Play className="size-3 fill-primary-foreground" /> {bannerEditing.buttonText}
-                                    </Button>
-                                </div>
-                            </div>
-                            <span className="text-[11px] text-muted-foreground mt-3">
-                                As rendered on the iOS / Android Worship Music screen
-                            </span>
-                        </div>
-                    </div>
-
-                    {/* Banner Edit Form */}
-                    <div className="rounded-2xl border border-border p-5 bg-card space-y-4">
-                        <h3 className="font-semibold text-foreground text-sm">Banner Configuration</h3>
-                        <div className="grid gap-3">
-                            <div className="grid gap-1.5">
-                                <Label htmlFor="bannerTitle" className="text-xs font-medium">
-                                    Banner Heading
-                                </Label>
-                                <Input
-                                    id="bannerTitle"
-                                    value={bannerEditing.title}
-                                    onChange={(e) => setBannerEditing({ ...bannerEditing, title: e.target.value })}
-                                />
-                            </div>
-                            <div className="grid gap-1.5">
-                                <Label htmlFor="bannerSubtitle" className="text-xs font-medium">
-                                    Banner Subtitle / Tagline
-                                </Label>
-                                <Input
-                                    id="bannerSubtitle"
-                                    value={bannerEditing.subtitle}
-                                    onChange={(e) => setBannerEditing({ ...bannerEditing, subtitle: e.target.value })}
-                                />
-                            </div>
-                            <div className="grid gap-1.5">
-                                <Label htmlFor="bannerImage" className="text-xs font-medium">
-                                    Background Cover Image URL
-                                </Label>
-                                <Input
-                                    id="bannerImage"
-                                    value={bannerEditing.coverUrl}
-                                    onChange={(e) => setBannerEditing({ ...bannerEditing, coverUrl: e.target.value })}
-                                />
-                            </div>
-                            <div className="grid gap-1.5">
-                                <Label htmlFor="bannerButton" className="text-xs font-medium">
-                                    Button Action Label
-                                </Label>
-                                <Input
-                                    id="bannerButton"
-                                    value={bannerEditing.buttonText}
-                                    onChange={(e) => setBannerEditing({ ...bannerEditing, buttonText: e.target.value })}
-                                />
-                            </div>
-                            <div className="flex items-center justify-between border rounded-lg p-3 bg-muted/20">
-                                <div>
-                                    <Label className="text-sm font-medium">Banner Active in App</Label>
-                                    <p className="text-xs text-muted-foreground">Show this featured banner prominently in the app</p>
-                                </div>
-                                <Switch
-                                    checked={bannerEditing.isActive}
-                                    onCheckedChange={(checked) => setBannerEditing({ ...bannerEditing, isActive: checked })}
-                                />
-                            </div>
-                        </div>
-                        <Button
-                            onClick={() => onSaveBanner(bannerEditing)}
-                            className="w-full bg-primary hover:bg-primary/90 text-primary-foreground"
-                        >
-                            Save Banner Changes
-                        </Button>
-                    </div>
-                </div>
-            )}
-
-            {/* Tab 4: Artists List */}
-            {mainTab === 'artists' && (
-                <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-5 gap-4">
-                    {artists.map((artist) => (
-                        <div
-                            key={artist.id}
-                            className="rounded-2xl border border-border p-4 bg-card flex flex-col items-center text-center gap-3 shadow-sm hover:border-primary/50 transition-colors"
-                        >
-                            <div className="size-20 rounded-full overflow-hidden border-2 border-border shadow-md">
-                                <img src={artist.imageUrl} alt={artist.name} className="size-full object-cover" />
-                            </div>
-                            <div>
-                                <h4 className="font-semibold text-foreground text-sm">{artist.name}</h4>
-                                <span className="text-xs text-muted-foreground">{artist.tracksCount} tracks cataloged</span>
-                            </div>
-                            {artist.bio && (
-                                <p className="text-xs text-muted-foreground line-clamp-2 leading-relaxed">
-                                    {artist.bio}
-                                </p>
-                            )}
-                        </div>
-                    ))}
-                </div>
-            )}
-
             {/* Create / Edit Song Dialog (Faithful to Figma & App) */}
             <Dialog open={songFormOpen} onOpenChange={setSongFormOpen}>
                 <DialogContent className="sm:max-w-2xl max-h-[90vh] overflow-y-auto">
                     <DialogHeader>
                         <DialogTitle>{editingSong ? 'Edit Worship Music' : 'Add New Worship Music'}</DialogTitle>
                         <DialogDescription>
-                            Configure audio metadata, scripture references, cover art, and scheduling for the app.
+                            Switch tabs to manage each language. English is canonical; Spanish and Portuguese are
+                            optional and fall back to English when fields are empty.
                         </DialogDescription>
                     </DialogHeader>
 
-                    <Tabs value={activeSongLanguage} onValueChange={(value) => setActiveSongLanguage(value as ContentLanguage)} className="gap-3">
-                        {!editingSong && (
-                            <div className="space-y-3">
-                                <p className="text-xs text-muted-foreground">Translation saving is not connected yet. Create submits the selected language only.</p>
-                                <TabsList className="grid h-10 w-full grid-cols-3">
-                                    {CONTENT_LANGUAGES.map((language) => <TabsTrigger key={language.value} value={language.value}>{language.label}</TabsTrigger>)}
-                                </TabsList>
-                            </div>
-                        )}
-                        <TabsContent value={activeSongLanguage} className="grid gap-4 py-2">
-                        {/* Information Section */}
+                    <div className="grid gap-4 py-2">
+                        {/* Per-language content */}
+                        <div className="border-b pb-4">
+                            <LanguageTabs
+                                value={songLang}
+                                forms={songLangForms}
+                                onChange={setSongLang}
+                                onFormChange={(lang, form) =>
+                                    setSongLangForms({ ...songLangForms, [lang]: form })
+                                }
+                            />
+                        </div>
+
+                        {/* Shared track details */}
                         <div className="border-b pb-4 space-y-3">
                             <h4 className="text-xs font-bold uppercase tracking-wider text-muted-foreground">
-                                Track Information
+                                Track Details (shared across languages)
                             </h4>
                             <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-                                <div className="grid gap-1.5">
-                                    <Label className="text-xs font-medium">
-                                        Track Title <span className="text-destructive">*</span>
-                                    </Label>
-                                    <Input
-                                        value={songForm.title}
-                                        onChange={(e) => setSongForm({ ...songForm, title: e.target.value })}
-                                        placeholder="e.g. Goodness of God"
-                                        required
-                                    />
-                                </div>
                                 <div className="grid gap-1.5">
                                     <Label className="text-xs font-medium">
                                         Author / Artist <span className="text-destructive">*</span>
@@ -827,150 +885,88 @@ export function WorshipMusicUI({
                                         required
                                     />
                                 </div>
-                            </div>
-
-                            <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
                                 <div className="grid gap-1.5">
-                                    <Label className="text-xs font-medium">Category</Label>
-                                    <Select
-                                        value={songForm.category}
-                                        onValueChange={(val) => setSongForm({ ...songForm, category: val })}
-                                    >
-                                        <SelectTrigger>
-                                            <SelectValue />
-                                        </SelectTrigger>
-                                        <SelectContent>
-                                            <SelectItem value="Gratitude">Gratitude</SelectItem>
-                                            <SelectItem value="Prayer for Peace">Prayer for Peace</SelectItem>
-                                            <SelectItem value="Encouragement">Encouragement</SelectItem>
-                                            <SelectItem value="Faith & Trust">Faith & Trust</SelectItem>
-                                            <SelectItem value="Praise & Adoration">Praise & Adoration</SelectItem>
-                                        </SelectContent>
-                                    </Select>
-                                </div>
-
-                                <div className="grid gap-1.5">
-                                    <Label className="text-xs font-medium">Duration (mm:ss)</Label>
+                                    <Label className="text-xs font-medium">Duration (minutes)</Label>
                                     <Input
-                                        value={songForm.duration}
-                                        onChange={(e) => setSongForm({ ...songForm, duration: e.target.value })}
-                                        placeholder="e.g. 4:32"
+                                        type="number"
+                                        min={0}
+                                        step={0.1}
+                                        value={songForm.durationMinutes}
+                                        onChange={(e) => setSongForm({ ...songForm, durationMinutes: e.target.value })}
+                                        placeholder="e.g. 4.5"
                                     />
                                 </div>
-
-                                <div className="grid gap-1.5">
-                                    <Label className="text-xs font-medium">Playlist</Label>
-                                    <Select
-                                        value={songForm.playlistId}
-                                        onValueChange={(val) => setSongForm({ ...songForm, playlistId: val })}
-                                    >
-                                        <SelectTrigger>
-                                            <SelectValue />
-                                        </SelectTrigger>
-                                        <SelectContent>
-                                            {playlists.map((p) => (
-                                                <SelectItem key={p.id} value={p.id}>
-                                                    {p.title}
-                                                </SelectItem>
-                                            ))}
-                                        </SelectContent>
-                                    </Select>
-                                </div>
+                            </div>
+                            <div className="grid gap-1.5">
+                                <Label className="text-xs font-medium">Playlist (the category)</Label>
+                                <SearchablePlaylistSelect
+                                    playlists={playlists}
+                                    value={songForm.playlistId}
+                                    onChange={(playlistId) => setSongForm({ ...songForm, playlistId })}
+                                />
                             </div>
                         </div>
 
-                        {/* Scripture Reference Section (Matching Figma Image 2!) */}
+                        {/* Cover Art Upload */}
                         <div className="border-b pb-4 space-y-3">
                             <h4 className="text-xs font-bold uppercase tracking-wider text-muted-foreground flex items-center gap-1.5">
-                                <BookOpen className="size-3.5 text-primary" /> Bible Reference
+                                <ImagePlus className="size-3.5 text-primary" /> Cover Art
                             </h4>
-                            <div className="grid gap-1.5">
-                                <Label className="text-xs font-medium">Assigned Bible Verse / Reference</Label>
-                                <Input
-                                    value={songForm.bibleReference}
-                                    onChange={(e) => setSongForm({ ...songForm, bibleReference: e.target.value })}
-                                    placeholder="e.g. Psalm 23:6 - Surely goodness and mercy shall follow me..."
-                                />
-                            </div>
-                            <div className="grid gap-1.5">
-                                <Label className="text-xs font-medium">Description / Devotional Context</Label>
-                                <Textarea
-                                    rows={2}
-                                    value={songForm.description}
-                                    onChange={(e) => setSongForm({ ...songForm, description: e.target.value })}
-                                    placeholder="Provide background or prayer focus for this track..."
-                                />
-                            </div>
+                            <ImageUpload
+                                value={songForm.coverUrl}
+                                onChange={(coverUrl) => setSongForm({ ...songForm, coverUrl })}
+                                folder="worship-music"
+                            />
                         </div>
 
-                        {/* Media & Audio Section */}
+                        {/* Audio & Publishing */}
                         <div className="space-y-3">
                             <h4 className="text-xs font-bold uppercase tracking-wider text-muted-foreground flex items-center gap-1.5">
-                                <Volume2 className="size-3.5 text-pink-500" /> Audio & Media Files
+                                <Volume2 className="size-3.5 text-pink-500" /> Audio & Publishing
                             </h4>
-                            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-                                <div className="grid gap-1.5">
-                                    <Label className="text-xs font-medium">Cover Image URL</Label>
-                                    <Input
-                                        value={songForm.coverUrl}
-                                        onChange={(e) => setSongForm({ ...songForm, coverUrl: e.target.value })}
-                                        placeholder="https://images.unsplash.com/..."
-                                    />
-                                </div>
-                                <div className="grid gap-1.5">
-                                    <Label className="text-xs font-medium">Audio Stream URL (.mp3)</Label>
-                                    <Input
-                                        value={songForm.audioUrl}
-                                        onChange={(e) => setSongForm({ ...songForm, audioUrl: e.target.value })}
-                                        placeholder="https://example.com/audio.mp3"
-                                    />
-                                </div>
+                            <div className="grid gap-1.5">
+                                <Label className="text-xs font-medium">Audio Stream URL (.mp3)</Label>
+                                <Input
+                                    value={songForm.audioUrl}
+                                    onChange={(e) => setSongForm({ ...songForm, audioUrl: e.target.value })}
+                                    placeholder="https://example.com/audio.mp3"
+                                />
                             </div>
 
-                            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 pt-2">
+                            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
                                 <div className="grid gap-1.5">
                                     <Label className="text-xs font-medium">Publishing Status</Label>
                                     <Select
                                         value={songForm.status}
-                                        onValueChange={(val) => setSongForm({ ...songForm, status: val as any })}
+                                        onValueChange={(val) => setSongForm({ ...songForm, status: val as WorshipSongStatus })}
                                     >
                                         <SelectTrigger>
                                             <SelectValue />
                                         </SelectTrigger>
                                         <SelectContent>
-                                            <SelectItem value="Published">Published</SelectItem>
-                                            <SelectItem value="Scheduled">Scheduled</SelectItem>
-                                            <SelectItem value="Draft">Draft</SelectItem>
+                                            <SelectItem value="PUBLISHED">Published</SelectItem>
+                                            <SelectItem value="SCHEDULED">Scheduled</SelectItem>
+                                            <SelectItem value="DRAFT">Draft</SelectItem>
                                         </SelectContent>
                                     </Select>
                                 </div>
-                                <div className="grid gap-1.5">
-                                    <Label className="text-xs font-medium">Scheduled Date</Label>
-                                    <Input
-                                        type="date"
-                                        value={songForm.scheduledDate}
-                                        onChange={(e) => setSongForm({ ...songForm, scheduledDate: e.target.value })}
+                                <div className="flex items-center justify-between border rounded-lg p-3 bg-muted/20">
+                                    <div>
+                                        <Label className="text-xs font-medium cursor-pointer">
+                                            Pin in Featured Music
+                                        </Label>
+                                        <p className="text-[11px] text-muted-foreground">
+                                            Feature prominently on the mobile screen
+                                        </p>
+                                    </div>
+                                    <Switch
+                                        checked={songForm.isFeatured}
+                                        onCheckedChange={(checked) => setSongForm({ ...songForm, isFeatured: checked })}
                                     />
                                 </div>
                             </div>
-
-                            <div className="flex items-center justify-between border rounded-lg p-3 bg-muted/20">
-                                <div>
-                                    <Label className="text-xs font-medium cursor-pointer">
-                                        Pin in Top Worship Songs
-                                    </Label>
-                                    <p className="text-[11px] text-muted-foreground">
-                                        Feature prominently on the Worship Music mobile screen
-                                    </p>
-                                </div>
-                                <Switch
-                                    checked={songForm.isFeatured}
-                                    onCheckedChange={(checked) => setSongForm({ ...songForm, isFeatured: checked })}
-                                />
-                            </div>
                         </div>
-                        </TabsContent>
-                    </Tabs>
+                    </div>
 
                     <DialogFooter>
                         <Button variant="outline" onClick={() => setSongFormOpen(false)}>
@@ -978,7 +974,7 @@ export function WorshipMusicUI({
                         </Button>
                         <Button
                             onClick={submitSongForm}
-                            disabled={!songForm.title.trim() || !songForm.artist.trim()}
+                            disabled={!songLangForms.en.title.trim() || !songForm.artist.trim()}
                             className="bg-primary hover:bg-primary/90 text-primary-foreground"
                         >
                             {editingSong ? 'Save Changes' : 'Add Music Track'}
@@ -989,51 +985,36 @@ export function WorshipMusicUI({
 
             {/* Playlist Dialog */}
             <Dialog open={playlistFormOpen} onOpenChange={setPlaylistFormOpen}>
-                <DialogContent className="sm:max-w-md">
+                <DialogContent className="sm:max-w-md max-h-[90vh] overflow-y-auto">
                     <DialogHeader>
                         <DialogTitle>{editingPlaylist ? 'Edit Playlist' : 'Add New Playlist'}</DialogTitle>
                         <DialogDescription>
-                            Configure playlist title, cover image, and category for the app.
+                            Switch tabs to manage each language. The playlist is the category in music context.
                         </DialogDescription>
                     </DialogHeader>
                     <div className="grid gap-3 py-2">
+                        <LanguageTabs
+                            value={playlistLang}
+                            forms={playlistLangForms}
+                            field2Label={null}
+                            onChange={setPlaylistLang}
+                            onFormChange={(lang, form) =>
+                                setPlaylistLangForms({ ...playlistLangForms, [lang]: form })
+                            }
+                        />
                         <div className="grid gap-1.5">
-                            <Label className="text-xs font-medium">Playlist Title *</Label>
-                            <Input
-                                value={playlistForm.title}
-                                onChange={(e) => setPlaylistForm({ ...playlistForm, title: e.target.value })}
-                                placeholder="e.g. Morning Worship"
-                            />
-                        </div>
-                        <div className="grid gap-1.5">
-                            <Label className="text-xs font-medium">Description</Label>
-                            <Textarea
-                                rows={2}
-                                value={playlistForm.description}
-                                onChange={(e) => setPlaylistForm({ ...playlistForm, description: e.target.value })}
-                                placeholder="e.g. Start your day in quiet prayer..."
-                            />
-                        </div>
-                        <div className="grid gap-1.5">
-                            <Label className="text-xs font-medium">Cover Image URL</Label>
-                            <Input
+                            <Label className="text-xs font-medium">Cover Image (shared)</Label>
+                            <ImageUpload
                                 value={playlistForm.coverUrl}
-                                onChange={(e) => setPlaylistForm({ ...playlistForm, coverUrl: e.target.value })}
-                                placeholder="https://..."
-                            />
-                        </div>
-                        <div className="grid gap-1.5">
-                            <Label className="text-xs font-medium">Category</Label>
-                            <Input
-                                value={playlistForm.category}
-                                onChange={(e) => setPlaylistForm({ ...playlistForm, category: e.target.value })}
-                                placeholder="e.g. Prayer for Peace"
+                                onChange={(coverUrl) => setPlaylistForm({ ...playlistForm, coverUrl })}
+                                folder="worship-music"
+                                compact
                             />
                         </div>
                         <div className="flex items-center justify-between border rounded-lg p-3 bg-muted/20">
                             <div>
                                 <Label className="text-xs font-medium">Feature in App Carousel</Label>
-                                <p className="text-[11px] text-muted-foreground">Show in Popular Playlists</p>
+                                <p className="text-[11px] text-muted-foreground">Show in Featured Playlists</p>
                             </div>
                             <Switch
                                 checked={playlistForm.isFeatured}
@@ -1046,11 +1027,22 @@ export function WorshipMusicUI({
                             Cancel
                         </Button>
                         <Button
-                            onClick={() => {
-                                onSavePlaylist(playlistForm)
+                            onClick={async () => {
+                                const en = playlistLangForms.en
+                                const input: PlaylistInput = {
+                                    title: en.title.trim(),
+                                    description: en.description.trim() || null,
+                                    coverUrl: playlistForm.coverUrl.trim() || null,
+                                    isFeatured: playlistForm.isFeatured,
+                                    translations: {
+                                        items: toPlaylistTranslations(playlistLangForms, Boolean(editingPlaylist)),
+                                    },
+                                }
+                                if (editingPlaylist) await onUpdatePlaylist(editingPlaylist.id, input)
+                                else await onCreatePlaylist(input)
                                 setPlaylistFormOpen(false)
                             }}
-                            disabled={!playlistForm.title.trim()}
+                            disabled={!playlistLangForms.en.title.trim()}
                             className="bg-primary hover:bg-primary/90 text-primary-foreground"
                         >
                             Save Playlist
@@ -1086,7 +1078,7 @@ export function WorshipMusicUI({
                 <div className="fixed bottom-4 left-1/2 -translate-x-1/2 z-50 w-[95%] max-w-2xl bg-primary text-primary-foreground rounded-2xl shadow-2xl p-3 flex items-center justify-between gap-4 border border-primary-foreground/10 animate-in fade-in slide-in-from-bottom-4 duration-300">
                     <audio
                         ref={audioRef}
-                        src={currentPlaying.audioUrl}
+                        src={currentPlaying.audioUrl ?? undefined}
                         onEnded={() => setIsPlaying(false)}
                         autoPlay
                     />
@@ -1094,7 +1086,7 @@ export function WorshipMusicUI({
                     {/* Track info */}
                     <div className="flex items-center gap-3 min-w-0">
                         <img
-                            src={currentPlaying.coverUrl}
+                            src={resolveImage(currentPlaying.coverUrl)}
                             alt={currentPlaying.title}
                             className="size-11 rounded-lg object-cover border border-white/20 shrink-0"
                         />
@@ -1171,6 +1163,74 @@ export function WorshipMusicUI({
                 </div>
             )}
         </div>
+    )
+}
+
+/** Searchable playlist dropdown (popover + filter). */
+function SearchablePlaylistSelect({
+    playlists,
+    value,
+    onChange,
+    placeholder = 'Select playlist...',
+}: {
+    playlists: WorshipPlaylist[]
+    value: string
+    onChange: (playlistId: string) => void
+    placeholder?: string
+}) {
+    const [open, setOpen] = useState(false)
+    const [query, setQuery] = useState('')
+    const selected = playlists.find((p) => p.id === value)
+    const filtered = query.trim()
+        ? playlists.filter((p) => p.title.toLowerCase().includes(query.trim().toLowerCase()))
+        : playlists
+
+    return (
+        <Popover open={open} onOpenChange={setOpen}>
+            <PopoverTrigger asChild>
+                <Button
+                    type="button"
+                    variant="outline"
+                    role="combobox"
+                    aria-expanded={open}
+                    className="w-full justify-between font-normal"
+                >
+                    <span className="truncate">{selected ? selected.title : placeholder}</span>
+                    <ChevronsUpDown className="size-4 shrink-0 opacity-50" />
+                </Button>
+            </PopoverTrigger>
+            <PopoverContent className="w-(--radix-popover-trigger-width) p-2" align="start">
+                <Input
+                    value={query}
+                    onChange={(e) => setQuery(e.target.value)}
+                    placeholder="Search playlists..."
+                    className="mb-1.5 h-9"
+                />
+                <div className="max-h-52 overflow-y-auto">
+                    {filtered.length === 0 ? (
+                        <p className="py-4 text-center text-xs text-muted-foreground">No playlists found</p>
+                    ) : (
+                        filtered.map((playlist) => (
+                            <button
+                                key={playlist.id}
+                                type="button"
+                                onClick={() => {
+                                    onChange(playlist.id)
+                                    setOpen(false)
+                                    setQuery('')
+                                }}
+                                className="flex w-full items-center gap-2 rounded-md px-2 py-1.5 text-left text-sm hover:bg-muted cursor-pointer"
+                            >
+                                <Check
+                                    className={`size-4 shrink-0 ${playlist.id === value ? 'opacity-100' : 'opacity-0'}`}
+                                />
+                                <span className="truncate">{playlist.title}</span>
+                            </button>
+                        ))
+                    )}
+                </div>
+            </PopoverContent>
+        </Popover>
     )
 }
 

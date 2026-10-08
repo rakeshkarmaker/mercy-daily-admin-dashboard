@@ -29,6 +29,9 @@ export type EngagementDistribution = {
     community: number
     mediaViews: number
     totalRate: number
+    prayersCount: number
+    communityCount: number
+    mediaViewsCount: number
 }
 
 export type ActivityItem = {

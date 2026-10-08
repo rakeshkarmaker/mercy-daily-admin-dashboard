@@ -401,7 +401,7 @@ export function PrayersUI({
                     onValueChange={(val) => onTabChange(val as 'all' | 'active' | 'answered' | 'deleted')}
                     className="w-full"
                 >
-                    <TabsList variant="line" className="mb-2 w-full justify-start border-b border-border/50">
+                    <TabsList variant="line" className="mb-2 w-full max-w-full justify-start overflow-x-auto border-b border-border/50">
                         <TabsTrigger value="all" className="flex-none px-4">
                             All requests
                         </TabsTrigger>

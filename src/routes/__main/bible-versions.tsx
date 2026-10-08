@@ -114,9 +114,15 @@ function BibleVersionsPage() {
         },
         onSuccess: (result) => {
             setActiveSyncCode(null)
-            toast.success(
-                `Synced ${result.version}: ${result.recordsProcessed.toLocaleString()} verses imported`,
-            )
+            if ((result.recordsProcessed ?? 0) === 0) {
+                toast.warning(
+                    `Sync finished for ${result.version} but 0 verses matched — the translation may be partial (e.g. New Testament only) or the filter matched nothing`,
+                )
+            } else {
+                toast.success(
+                    `Synced ${result.version}: ${result.recordsProcessed.toLocaleString()} verses imported`,
+                )
+            }
             queryClient.invalidateQueries({ queryKey: ['bible-synced-versions'] })
             queryClient.invalidateQueries({ queryKey: ['bible-version-books'] })
         },

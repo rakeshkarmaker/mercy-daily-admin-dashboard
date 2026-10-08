@@ -29,6 +29,7 @@ import { Route as _mainReportsRouteImport } from './routes/__main/reports'
 import { Route as _mainSermonsRouteImport } from './routes/__main/sermons'
 import { Route as _mainSettingsRouteImport } from './routes/__main/settings'
 import { Route as _mainSubscriptionsRouteImport } from './routes/__main/subscriptions'
+import { Route as _mainSupportRouteImport } from './routes/__main/support'
 import { Route as _mainUserManagementRouteImport } from './routes/__main/user-management'
 import { Route as _mainWorshipMusicRouteImport } from './routes/__main/worship-music'
 
@@ -130,6 +131,11 @@ const _mainSubscriptionsRoute = _mainSubscriptionsRouteImport.update({
   path: '/subscriptions',
   getParentRoute: () => _mainRouteRoute,
 } as any)
+const _mainSupportRoute = _mainSupportRouteImport.update({
+  id: '/support',
+  path: '/support',
+  getParentRoute: () => _mainRouteRoute,
+} as any)
 const _mainUserManagementRoute = _mainUserManagementRouteImport.update({
   id: '/user-management',
   path: '/user-management',
@@ -160,6 +166,7 @@ export interface FileRoutesByFullPath {
   '/sermons': typeof _mainSermonsRoute
   '/settings': typeof _mainSettingsRoute
   '/subscriptions': typeof _mainSubscriptionsRoute
+  '/support': typeof _mainSupportRoute
   '/user-management': typeof _mainUserManagementRoute
   '/worship-music': typeof _mainWorshipMusicRoute
 }
@@ -182,6 +189,7 @@ export interface FileRoutesByTo {
   '/sermons': typeof _mainSermonsRoute
   '/settings': typeof _mainSettingsRoute
   '/subscriptions': typeof _mainSubscriptionsRoute
+  '/support': typeof _mainSupportRoute
   '/user-management': typeof _mainUserManagementRoute
   '/worship-music': typeof _mainWorshipMusicRoute
 }
@@ -206,6 +214,7 @@ export interface FileRoutesById {
   '/__main/sermons': typeof _mainSermonsRoute
   '/__main/settings': typeof _mainSettingsRoute
   '/__main/subscriptions': typeof _mainSubscriptionsRoute
+  '/__main/support': typeof _mainSupportRoute
   '/__main/user-management': typeof _mainUserManagementRoute
   '/__main/worship-music': typeof _mainWorshipMusicRoute
   '/__main/': typeof _mainIndexRoute
@@ -231,6 +240,7 @@ export interface FileRouteTypes {
     | '/sermons'
     | '/settings'
     | '/subscriptions'
+    | '/support'
     | '/user-management'
     | '/worship-music'
   fileRoutesByTo: FileRoutesByTo
@@ -253,6 +263,7 @@ export interface FileRouteTypes {
     | '/sermons'
     | '/settings'
     | '/subscriptions'
+    | '/support'
     | '/user-management'
     | '/worship-music'
   id:
@@ -276,6 +287,7 @@ export interface FileRouteTypes {
     | '/__main/sermons'
     | '/__main/settings'
     | '/__main/subscriptions'
+    | '/__main/support'
     | '/__main/user-management'
     | '/__main/worship-music'
     | '/__main/'
@@ -428,6 +440,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof _mainSubscriptionsRouteImport
       parentRoute: typeof _mainRouteRoute
     }
+    '/__main/support': {
+      id: '/__main/support'
+      path: '/support'
+      fullPath: '/support'
+      preLoaderRoute: typeof _mainSupportRouteImport
+      parentRoute: typeof _mainRouteRoute
+    }
     '/__main/user-management': {
       id: '/__main/user-management'
       path: '/user-management'
@@ -478,6 +497,7 @@ interface _mainRouteRouteChildren {
   _mainSermonsRoute: typeof _mainSermonsRoute
   _mainSettingsRoute: typeof _mainSettingsRoute
   _mainSubscriptionsRoute: typeof _mainSubscriptionsRoute
+  _mainSupportRoute: typeof _mainSupportRoute
   _mainUserManagementRoute: typeof _mainUserManagementRoute
   _mainWorshipMusicRoute: typeof _mainWorshipMusicRoute
   _mainIndexRoute: typeof _mainIndexRoute
@@ -496,6 +516,7 @@ const _mainRouteRouteChildren: _mainRouteRouteChildren = {
   _mainSermonsRoute: _mainSermonsRoute,
   _mainSettingsRoute: _mainSettingsRoute,
   _mainSubscriptionsRoute: _mainSubscriptionsRoute,
+  _mainSupportRoute: _mainSupportRoute,
   _mainUserManagementRoute: _mainUserManagementRoute,
   _mainWorshipMusicRoute: _mainWorshipMusicRoute,
   _mainIndexRoute: _mainIndexRoute,

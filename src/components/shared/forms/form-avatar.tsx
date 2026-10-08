@@ -1,7 +1,7 @@
 import { useFieldContext } from '@/components/shared/forms/form-context'
 import { Button } from '@/components/ui/button'
 import { Spinner } from '@/components/shared/spinner'
-import { deleteImage, resolveImage, uploadImage } from '@/api'
+import { deleteImage, isDeletableImage, resolveImage, uploadImage } from '@/api'
 import { Camera, X } from 'lucide-react'
 import { useRef, useTransition } from 'react'
 import { toast } from 'sonner'
@@ -39,9 +39,9 @@ export function FormAvatar({ folder = 'avatars', disabled, accept = 'image/png,i
     const handleDelete = () => {
         if (!value) return
 
-        // Only server-stored uploads can be deleted on the backend; legacy
-        // absolute https URLs are not ours to remove.
-        const deletable = value.startsWith('/uploads/')
+        // Only Cloudinary-hosted uploads can be deleted on the backend;
+        // legacy /uploads/... paths and external URLs are not removable.
+        const deletable = isDeletableImage(value)
 
         startDelete(async () => {
             try {

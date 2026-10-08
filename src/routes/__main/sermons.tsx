@@ -1,12 +1,12 @@
 import { createFileRoute } from '@tanstack/react-router'
-import { useMemo } from 'react'
+import { useMemo, useState } from 'react'
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import { useSearchParams } from '@/hooks/use-search-params'
 import { toast } from 'sonner'
 import * as z from 'zod'
 import { SermonsUI } from '@/components/features/sermons/sermons-ui'
 import { createSermon, deleteSermon, listSermons, updateSermon } from '@/api/sermons'
-import type { SermonInput, SermonStatus } from '@/api/sermons'
+import type { SermonInput, SermonLanguage, SermonStatus } from '@/api/sermons'
 
 const searchSchema = z.object({
     page: z.number().catch(1).optional(),
@@ -25,9 +25,13 @@ function SermonsPage() {
     const mergeSearch = useSearchParams()
     const queryClient = useQueryClient()
 
+    // Active content language — the server projects it onto every row
+    // (single shared Language enum: en|esp|por).
+    const [language, setLanguage] = useState<SermonLanguage>('en')
+
     const { data, isLoading } = useQuery({
-        queryKey: ['sermons', page, limit, status],
-        queryFn: () => listSermons({ page, limit, status }),
+        queryKey: ['sermons', page, limit, status, language],
+        queryFn: () => listSermons({ page, limit, status, language }),
     })
 
     const sermons = useMemo(() => {
@@ -84,6 +88,8 @@ function SermonsPage() {
             limit={limit}
             searchQuery={searchQuery}
             status={status as SermonStatus | 'ALL'}
+            language={language}
+            onLanguageChange={setLanguage}
             onSearchChange={(value) => mergeSearch({ search: value || undefined, page: 1 })}
             onResetSearch={() => mergeSearch({ search: undefined, page: 1 })}
             onStatusChange={(value) => mergeSearch({ status: value === 'ALL' ? undefined : value, page: 1 })}

@@ -20,6 +20,7 @@ import {
     UsersRound,
     Bell,
     WalletCards,
+    LifeBuoy,
 } from 'lucide-react'
 
 const NAV_ITEMS = [
@@ -36,6 +37,7 @@ const NAV_ITEMS = [
     { title: 'Payments', url: '/payments', icon: <WalletCards className="size-4" /> },
     { title: 'Bible Versions', url: '/bible-versions', icon: <BookOpen className="size-4" /> },
     { title: 'Notifications', url: '/notifications', icon: <Bell className="size-4" /> },
+    { title: 'Support Inbox', url: '/support', icon: <LifeBuoy className="size-4" /> },
     { title: 'Settings', url: '/settings', icon: <Settings className="size-4" /> },
 ]
 

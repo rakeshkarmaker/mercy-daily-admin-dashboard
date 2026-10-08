@@ -511,13 +511,13 @@ export function PrayerManagementUI({
             {
                 key: 'verse',
                 header: 'SCRIPTURE VERSE',
-                render: (row) => <span className="line-clamp-2 max-w-72 text-muted-foreground italic">“{row.prayer.verse}”</span>,
+                render: (row) => <span className="line-clamp-2 max-w-72 break-words text-muted-foreground italic">“{row.prayer.verse}”</span>,
             },
             {
                 key: 'prayer',
                 header: 'PRAYER / REFLECTION',
                 render: (row) => (
-                    <span className="line-clamp-2 max-w-72 text-muted-foreground">
+                    <span className="line-clamp-2 max-w-72 break-words text-muted-foreground">
                         {row.prayer.reflection || row.prayer.prayer}
                     </span>
                 ),
@@ -558,7 +558,7 @@ export function PrayerManagementUI({
                 header: 'VERSE',
                 render: (row) => (
                     <div className="flex min-w-0 items-center gap-2">
-                        <span className="font-semibold text-foreground line-clamp-2 max-w-70">{row.verse}</span>
+                        <span className="font-semibold text-foreground line-clamp-2 max-w-70 break-words">{row.verse}</span>
                         <span className="flex flex-none items-center gap-0.5" title={`Languages: ${languageLabelsFor(row)}`}>
                             <LanguageDot language="en" available />
                             <LanguageDot language="esp" available={hasPrayerLanguage(row, 'esp')} />
@@ -578,7 +578,7 @@ export function PrayerManagementUI({
             {
                 key: 'prayer',
                 header: 'PRAYER',
-                render: (row) => <span className="text-muted-foreground line-clamp-2 max-w-90">{row.prayer}</span>,
+                render: (row) => <span className="text-muted-foreground line-clamp-2 max-w-90 break-words">{row.prayer}</span>,
             },
             {
                 key: 'updatedAt',
@@ -590,7 +590,7 @@ export function PrayerManagementUI({
                 header: 'PRACTICAL STEP',
                 render: (row) =>
                     row.practice ? (
-                        <span className="line-clamp-2 max-w-60 text-xs text-muted-foreground" title={row.practice}>
+                        <span className="line-clamp-2 max-w-60 break-words text-xs text-muted-foreground" title={row.practice}>
                             {row.practice}
                         </span>
                     ) : (
@@ -636,7 +636,7 @@ export function PrayerManagementUI({
     )
 
     return (
-        <div className="flex w-full max-w-full flex-col gap-4">
+        <div className="flex w-full min-w-0 max-w-full flex-col gap-4">
             <div className="flex flex-col gap-4 border-b border-border/50 pb-4 lg:flex-row lg:items-center lg:justify-between">
                 <PageHeader
                     title="Daily Prayers"
@@ -659,9 +659,9 @@ export function PrayerManagementUI({
             <Tabs
                 value={activeTab}
                 onValueChange={(val) => onTabChange?.(val as 'today' | 'library' | 'schedules')}
-                className="w-full"
+                className="w-full min-w-0"
             >
-                <TabsList variant="line" className="mb-4 w-full justify-start border-b border-border/50">
+                <TabsList variant="line" className="mb-4 w-full max-w-full justify-start overflow-x-auto border-b border-border/50">
                     <TabsTrigger value="today" className="flex-none px-4 gap-2">
                         Today's prayer
                         <span className="inline-flex items-center rounded-full bg-emerald-500/10 px-2 py-0.5 text-[11px] font-semibold text-emerald-600">
@@ -680,7 +680,7 @@ export function PrayerManagementUI({
                 </TabsList>
 
                 {/* ── Tab 1: Today's Prayer ── */}
-                <TabsContent value="today" className="space-y-6">
+                <TabsContent value="today" className="min-w-0 space-y-6">
                     {todayLoading ? (
                         <div className="space-y-4">
                             <div className="h-28 rounded-xl bg-muted/60 animate-pulse border border-border/50" />
@@ -837,7 +837,7 @@ export function PrayerManagementUI({
                 </TabsContent>
 
                 {/* ── Tab 2: Prayer Library ── */}
-                <TabsContent value="library">
+                <TabsContent value="library" className="min-w-0">
                     <DataTable
                         columns={columns}
                         data={prayers}
@@ -852,7 +852,7 @@ export function PrayerManagementUI({
                 </TabsContent>
 
                 {/* ── Tab 3: Schedules ── */}
-                <TabsContent value="schedules" className="space-y-4">
+                <TabsContent value="schedules" className="min-w-0 space-y-4">
                     <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between rounded-xl border border-border/60 bg-muted/20 p-4">
                         <div className="space-y-0.5">
                             <h3 className="text-sm font-semibold text-foreground">Scheduled Overrides ({schedules.length})</h3>

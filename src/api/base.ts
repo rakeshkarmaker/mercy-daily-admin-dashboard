@@ -138,7 +138,9 @@ export function toQuery(params: Record<string, string | number | boolean | undef
 
 export function resolveImage(image: string | null | undefined): string {
     if (!image) return '/placeholder.jpg'
+    // Cloudinary secure URLs (and any absolute URL) are used as-is.
     if (image.startsWith('http://') || image.startsWith('https://')) return image
+    // Legacy relative /uploads/... paths from before the Cloudinary move.
     if (image.startsWith('/uploads/')) return `${baseURL}${image}`
     return image
 }
