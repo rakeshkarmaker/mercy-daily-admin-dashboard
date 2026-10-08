@@ -174,7 +174,7 @@ export function UserManagementUI({
         <>
             {/* Header & Toolbar */}
             <div className="flex flex-col lg:flex-row lg:items-center justify-between border-b border-border/50">
-                <PageHeader title="User Management" className="shrink-0 text-xl font-bold text-chart-1" />
+                <PageHeader title="User Management" description="Manage member accounts, statuses, and access." />
                 <div className="flex items-center flex-wrap gap-3">
                     <SearchInput
                         value={searchQuery}

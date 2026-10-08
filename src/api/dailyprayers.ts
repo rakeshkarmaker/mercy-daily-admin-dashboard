@@ -61,6 +61,20 @@ export function listSchedules() {
     return request<PrayerSchedule[]>('/dailyprayers/schedules')
 }
 
+/** One day of the upcoming preview: the override or the rotation pick. */
+export type PreviewDay = {
+    date: string
+    source: 'scheduled' | 'rotation'
+    prayer: Prayer
+}
+
+/** Preview what each date in [from, to] will display (admin only, max 31 days). */
+export function getPreview(from: string, to: string, language?: PrayerLanguage) {
+    return request<PreviewDay[]>(
+        `/dailyprayers/preview${toQuery({ from, to, language })}`,
+    )
+}
+
 export function getPrayer(id: number, language?: PrayerLanguage) {
     return request<Prayer>(`/dailyprayers/${id}${toQuery(language ? { language } : {})}`)
 }

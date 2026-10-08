@@ -15,6 +15,7 @@ import { Textarea } from '@/components/ui/textarea'
 import { Eye, Languages, Pencil, Plus, ThumbsUp, Trash2, Youtube, Languages as LanguagesIcon } from 'lucide-react'
 import { toast } from 'sonner'
 import { resolveImage } from '@/api/base'
+import { Alert, AlertDescription } from '@/components/ui/alert'
 import { FilterBuilder } from '@/components/shared/filter-builder'
 import type { FilterOption, FilterState } from '@/components/shared/filter-builder'
 import { CONTENT_LANGUAGES, LANGUAGE_FILTER_OPTIONS } from '@/lib/language'
@@ -391,17 +392,16 @@ function languageLabelsFor(sermon: Sermon): string {
         .join(', ')
 }
 
-/** Small language availability dot for the title cell. */
+/** Language availability badge for the title cell. */
 function LanguageDot({ language, available }: { language: SermonLanguage; available: boolean }) {
     const label = CONTENT_LANGUAGES.find((l) => l.value === language)?.label ?? language
     return (
-        <span
-            className={`rounded px-1 py-px text-[10px] font-semibold tracking-wide ${
-                available ? 'bg-primary/10 text-primary' : 'bg-muted text-muted-foreground/50 line-through'
-            }`}
+        <Badge
+            variant={available ? 'secondary' : 'outline'}
+            className={available ? undefined : 'text-muted-foreground/50 line-through'}
         >
             {label}
-        </span>
+        </Badge>
     )
 }
 
@@ -550,10 +550,12 @@ function ViewLanguageContent({ sermon, language }: { sermon: Sermon; language: S
     return (
         <div className="space-y-4">
             {!exists && (
-                <p className="flex items-center gap-2 rounded-lg bg-muted/60 px-3 py-2 text-xs text-muted-foreground">
-                    <Languages className="size-3.5" />
-                    Not translated yet — showing the {baseLabel} content as fallback.
-                </p>
+                <Alert>
+                    <Languages />
+                    <AlertDescription>
+                        Not translated yet — showing the {baseLabel} content as fallback.
+                    </AlertDescription>
+                </Alert>
             )}
             {title && <h4 className="text-base font-semibold text-foreground">{title}</h4>}
             <img src={resolveImage(thumbnailUrl)} alt={title || 'Sermon thumbnail'} className="aspect-video w-full rounded-xl border border-border/50 object-cover" />

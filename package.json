@@ -25,6 +25,7 @@
         "@tanstack/router-plugin": "^1.132.0",
         "class-variance-authority": "^0.7.1",
         "clsx": "^2.1.1",
+        "cn": "^0.4.0",
         "i18next": "^26.3.1",
         "input-otp": "^1.4.2",
         "jodit": "^4.12.44",

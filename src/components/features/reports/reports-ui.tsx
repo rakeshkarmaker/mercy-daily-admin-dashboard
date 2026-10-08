@@ -169,7 +169,7 @@ export function ReportsUI({
                 <div className="flex flex-col lg:flex-row lg:items-center justify-between gap-4 pb-4 border-b border-border/50">
                     <PageHeader
                         title="Reports"
-                        className="shrink-0 text-xl font-bold text-chart-1"
+                        description="Review reported posts and comments, and track moderation progress."
                     />
                     <div className="flex items-center flex-wrap gap-3">
                         <SearchInput

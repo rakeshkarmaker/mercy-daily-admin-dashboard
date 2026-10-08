@@ -16,8 +16,8 @@ const COLOR_MAP = {
         badge: 'bg-warning/10 text-warning',
     },
     amber: {
-        blob: 'bg-amber-500/5',
-        badge: 'bg-amber-50 text-amber-600 dark:bg-amber-950/40 dark:text-amber-400',
+        blob: 'bg-primary/5',
+        badge: 'bg-primary/10 text-primary',
     },
     pink: {
         blob: 'bg-pink-500/5',

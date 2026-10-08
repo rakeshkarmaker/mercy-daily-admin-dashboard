@@ -16,10 +16,15 @@ import {
     DialogTitle,
 } from '@/components/ui/dialog'
 import { TrashConfirm } from '@/components/shared/trash-confirm'
+import { Alert, AlertDescription } from '@/components/ui/alert'
+import { Skeleton } from '@/components/ui/skeleton'
+import { Empty, EmptyDescription, EmptyHeader, EmptyMedia, EmptyTitle } from '@/components/ui/empty'
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs'
 import {
     BookOpen,
     Calendar,
+    CalendarCheck,
+    CalendarDays,
     CalendarPlus,
     Check,
     CheckSquare,
@@ -138,18 +143,17 @@ function languageLabelsFor(row: Prayer): string {
         .join(', ')
 }
 
-/** Small language availability dot for verse/reference cells. */
+/** Language availability badge for verse/reference cells. */
 function LanguageDot({ language, available }: { language: ContentLanguage; available: boolean }) {
     const label = CONTENT_LANGUAGES.find((l) => l.value === language)?.label ?? language
     return (
-        <span
+        <Badge
+            variant={available ? 'secondary' : 'outline'}
             title={`${label}: ${available ? 'available' : 'not translated'}`}
-            className={`rounded px-1 py-px text-[10px] font-semibold tracking-wide ${
-                available ? 'bg-primary/10 text-primary' : 'bg-muted text-muted-foreground/50 line-through'
-            }`}
+            className={available ? undefined : 'text-muted-foreground/50 line-through'}
         >
             {label}
-        </span>
+        </Badge>
     )
 }
 
@@ -225,10 +229,12 @@ function ViewLanguageContent({ prayer, language }: { prayer: Prayer; language: C
     return (
         <div className="space-y-4">
             {!exists && (
-                <p className="flex items-center gap-2 rounded-lg bg-muted/60 px-3 py-2 text-xs text-muted-foreground">
-                    <Languages className="size-3.5" />
-                    Not translated yet — showing the {baseLabel} content as fallback.
-                </p>
+                <Alert>
+                    <Languages />
+                    <AlertDescription>
+                        Not translated yet — showing the {baseLabel} content as fallback.
+                    </AlertDescription>
+                </Alert>
             )}
             <section className="rounded-xl border border-primary/20 bg-primary/5 p-5">
                 <div className="mb-2 flex items-center justify-between gap-2">
@@ -335,6 +341,28 @@ export function PrayerManagementUI({
                 icon: Languages,
                 type: 'select',
                 options: LANGUAGE_FILTER_OPTIONS,
+            },
+            {
+                id: 'scheduled',
+                label: 'Scheduled',
+                icon: CalendarCheck,
+                type: 'select',
+                options: [
+                    { label: 'Scheduled', value: 'scheduled' },
+                    { label: 'Not scheduled', value: 'unscheduled' },
+                ],
+            },
+            {
+                id: 'updatedAt',
+                label: 'Updated',
+                icon: Calendar,
+                type: 'date',
+            },
+            {
+                id: 'displayDate',
+                label: 'Display date',
+                icon: CalendarDays,
+                type: 'date',
             },
         ],
         [],
@@ -599,7 +627,7 @@ export function PrayerManagementUI({
                 header: 'VERSE',
                 render: (row) => (
                     <div className="flex min-w-0 flex-col gap-1">
-                        <span className="font-semibold text-foreground line-clamp-2 max-w-52 break-words">{row.verse}</span>
+                        <span className="font-semibold text-foreground line-clamp-2 max-w-60 break-words">{row.verse}</span>
                         <span className="flex items-center gap-0.5" title={`Languages: ${languageLabelsFor(row)}`}>
                             {CONTENT_LANGUAGES.map((l) => (
                                 <LanguageDot key={l.value} language={l.value} available={hasPrayerLanguage(row, l.value)} />
@@ -701,11 +729,11 @@ export function PrayerManagementUI({
                 {/* ── Tab 1: Today's Prayer ── */}
                 <TabsContent value="today" className="min-w-0 space-y-6">
                     {todayLoading ? (
-                        <div className="space-y-4">
-                            <div className="h-28 rounded-xl bg-muted/60 animate-pulse border border-border/50" />
+                        <div className="flex flex-col gap-4">
+                            <Skeleton className="h-28 rounded-xl" />
                             <div className="grid gap-4 md:grid-cols-2">
-                                <div className="h-44 rounded-xl bg-muted/60 animate-pulse border border-border/50" />
-                                <div className="h-44 rounded-xl bg-muted/60 animate-pulse border border-border/50" />
+                                <Skeleton className="h-44 rounded-xl" />
+                                <Skeleton className="h-44 rounded-xl" />
                             </div>
                         </div>
                     ) : todayPrayer ? (
@@ -1217,11 +1245,17 @@ function PrayerSelector({
                     ? `${filtered.length} match${filtered.length === 1 ? '' : 'es'}`
                     : `Showing ${visible.length} of ${prayers.length} prayers — type to search the full library`}
             </p>
-            <div className="max-h-52 overflow-y-auto space-y-1.5 rounded-lg border border-border/60 p-1.5 bg-background">
+            <div className="flex max-h-52 flex-col gap-1.5 overflow-y-auto rounded-lg border border-border/60 bg-background p-1.5">
                 {filtered.length === 0 ? (
-                    <div className="py-6 text-center text-xs text-muted-foreground">
-                        No prayers matching "{search}"
-                    </div>
+                    <Empty>
+                        <EmptyHeader>
+                            <EmptyMedia variant="icon">
+                                <Search />
+                            </EmptyMedia>
+                            <EmptyTitle>No matching prayers</EmptyTitle>
+                            <EmptyDescription>No prayers matching "{search}"</EmptyDescription>
+                        </EmptyHeader>
+                    </Empty>
                 ) : (
                     visible.map((prayer) => {
                         const isSelected = prayer.id === selectedId
@@ -1463,9 +1497,9 @@ function CreateScheduleDialog({
 /** Amber warning when the chosen date collides with another override. */
 function ScheduleConflictWarning({ message }: { message: string }) {
     return (
-        <p className="flex items-start gap-2 rounded-lg border border-warning/30 bg-warning/10 px-3 py-2 text-xs text-foreground">
-            <TriangleAlert className="mt-0.5 size-3.5 shrink-0 text-warning" />
-            {message}
-        </p>
+        <Alert className="border-warning/30 bg-warning/10">
+            <TriangleAlert className="text-warning" />
+            <AlertDescription>{message}</AlertDescription>
+        </Alert>
     )
 }

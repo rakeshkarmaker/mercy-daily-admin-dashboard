@@ -298,7 +298,7 @@ export function BibleVersionsUI({
             render: (row) => {
                 const isSynced = syncedCodes.has(row.id.toUpperCase())
                 return isSynced ? (
-                    <Badge variant="outline" className="border-emerald-500/30 text-emerald-600 dark:text-emerald-400 bg-emerald-500/10 gap-1 text-xs">
+                    <Badge className="border-success/20 bg-success/10 text-success gap-1 text-xs">
                         <CheckCircle2 className="size-3" /> Synced
                     </Badge>
                 ) : (
@@ -383,39 +383,31 @@ export function BibleVersionsUI({
 
             {/* Main Tabs */}
             <Tabs value={tab} onValueChange={onTabChange} className="space-y-6">
-                <div className="border-b border-border">
-                    <TabsList className="max-w-full overflow-x-auto bg-transparent p-0 gap-6 h-auto">
-                        <TabsTrigger
-                            value="curated"
-                            className="rounded-none border-b-2 border-transparent data-[state=active]:border-primary data-[state=active]:bg-transparent px-1 pb-3 text-sm font-medium gap-2"
-                        >
-                            <Sparkles className="size-4 text-amber-500" />
-                            App Translations & Quick-Setup
-                        </TabsTrigger>
-                        <TabsTrigger
-                            value="explorer"
-                            className="rounded-none border-b-2 border-transparent data-[state=active]:border-primary data-[state=active]:bg-transparent px-1 pb-3 text-sm font-medium gap-2"
-                        >
-                            <BookOpen className="size-4" />
-                            Book Explorer (App Mirror)
-                            {books.length > 0 && (
-                                <Badge variant="secondary" className="ml-1 text-xs">
-                                    {books.length}
-                                </Badge>
-                            )}
-                        </TabsTrigger>
-                        <TabsTrigger
-                            value="catalog"
-                            className="rounded-none border-b-2 border-transparent data-[state=active]:border-primary data-[state=active]:bg-transparent px-1 pb-3 text-sm font-medium gap-2"
-                        >
-                            <Globe className="size-4" />
-                            Global Archive
-                            <Badge variant="outline" className="ml-1 text-xs">
-                                1,256
+                <TabsList
+                    variant="line"
+                    className="mb-3 w-full max-w-full justify-start overflow-x-auto border-b border-border/50"
+                >
+                    <TabsTrigger value="curated" className="flex-none gap-2 px-4">
+                        <Sparkles className="size-4 text-warning" />
+                        App Translations & Quick-Setup
+                    </TabsTrigger>
+                    <TabsTrigger value="explorer" className="flex-none gap-2 px-4">
+                        <BookOpen className="size-4" />
+                        Book Explorer (App Mirror)
+                        {books.length > 0 && (
+                            <Badge variant="secondary" className="ml-1 text-xs">
+                                {books.length}
                             </Badge>
-                        </TabsTrigger>
-                    </TabsList>
-                </div>
+                        )}
+                    </TabsTrigger>
+                    <TabsTrigger value="catalog" className="flex-none gap-2 px-4">
+                        <Globe className="size-4" />
+                        Global Archive
+                        <Badge variant="outline" className="ml-1 text-xs">
+                            1,256
+                        </Badge>
+                    </TabsTrigger>
+                </TabsList>
 
                 {/* ── TAB 1: CURATED APP PACK & SYNCED VERSIONS ─────────────────── */}
                 <TabsContent value="curated" className="space-y-8">
@@ -423,7 +415,7 @@ export function BibleVersionsUI({
                     <div className="space-y-3">
                         <div>
                             <h3 className="text-base font-semibold text-foreground flex items-center gap-2">
-                                <Sparkles className="size-4 text-amber-500" />
+                                <Sparkles className="size-4 text-warning" />
                                 Recommended App Translations (Top 3 Languages)
                             </h3>
                             <p className="text-sm text-muted-foreground">
@@ -444,7 +436,7 @@ export function BibleVersionsUI({
                                         key={t.id}
                                         className={`transition-all border ${
                                             isSynced
-                                                ? 'border-emerald-500/30 bg-emerald-50/20 dark:bg-emerald-950/10'
+                                                ? 'border-success/30 bg-success/5'
                                                 : 'border-border/60 hover:border-border'
                                         }`}
                                     >
@@ -474,7 +466,7 @@ export function BibleVersionsUI({
                                                 variant="secondary"
                                                 className={`w-fit text-[11px] font-normal mt-0.5 ${
                                                     t.recommendedDefault
-                                                        ? 'bg-amber-100 text-amber-800 dark:bg-amber-950 dark:text-amber-300'
+                                                        ? 'border-warning/30 bg-warning/10 text-warning'
                                                         : ''
                                                 }`}
                                             >
@@ -594,7 +586,7 @@ export function BibleVersionsUI({
                                     disabled={syncingCode === 'BSB'}
                                     className="gap-2 mt-2"
                                 >
-                                    <Sparkles className="size-4 text-amber-300" />
+                                    <Sparkles className="size-4" />
                                     Sync Berean Standard Bible (BSB)
                                 </Button>
                             </div>
@@ -896,7 +888,7 @@ export function BibleVersionsUI({
                                                     {b.isSynced ? (
                                                         <Badge
                                                             variant="outline"
-                                                            className="text-[10px] bg-emerald-500/10 text-emerald-700 dark:text-emerald-400 border-emerald-500/20 font-medium"
+                                                            className="text-[10px] bg-success/10 text-success border-success/20 font-medium"
                                                         >
                                                             Synced
                                                         </Badge>
@@ -918,7 +910,7 @@ export function BibleVersionsUI({
                                                         <span>
                                                             {b.chapterCount} Ch · {b.totalVerses.toLocaleString()} V
                                                         </span>
-                                                        <div className="flex items-center gap-1 font-medium text-foreground bg-amber-500/10 text-amber-700 dark:text-amber-400 px-2 py-0.5 rounded-full text-[11px]">
+                                                        <div className="flex items-center gap-1 font-medium bg-primary/10 text-primary px-2 py-0.5 rounded-full text-[11px]">
                                                             <MessageSquare className="size-3" />
                                                             <span>{b.discussionsCount.toLocaleString()}</span>
                                                         </div>
@@ -1137,7 +1129,7 @@ export function BibleVersionsUI({
                                                 {ch.numberOfVerses} v
                                             </span>
                                         </div>
-                                        <div className="flex items-center gap-1 text-[11px] text-amber-700 dark:text-amber-400">
+                                        <div className="flex items-center gap-1 text-[11px] text-primary">
                                             <MessageSquare className="size-3" />
                                             <span>{ch.discussionsCount.toLocaleString()}</span>
                                         </div>
@@ -1178,7 +1170,7 @@ export function BibleVersionsUI({
                         <DialogDescription className="flex items-center gap-3 text-xs">
                             <span>{selectedChapterDetail?.chapter.numberOfVerses} Verses</span>
                             <span>•</span>
-                            <span className="flex items-center gap-1 text-amber-600 font-medium">
+                            <span className="flex items-center gap-1 text-primary font-medium">
                                 <MessageSquare className="size-3" />
                                 {selectedChapterDetail?.chapter.discussionsCount.toLocaleString()} Community Notes
                             </span>
@@ -1193,7 +1185,7 @@ export function BibleVersionsUI({
                         <div className="flex-1 overflow-y-auto pr-2 py-4 space-y-3 text-sm leading-relaxed font-serif">
                             {selectedChapterDetail?.verses.map((v) => (
                                 <p key={v.id} className="text-foreground hover:bg-muted/40 p-1.5 rounded transition-colors">
-                                    <span className="font-sans font-bold text-xs text-amber-600 dark:text-amber-400 mr-2 select-none">
+                                    <span className="font-sans font-bold text-xs text-primary mr-2 select-none">
                                         {v.number}
                                     </span>
                                     <span>{v.text}</span>

@@ -234,17 +234,16 @@ function hasPlaylistLanguage(playlist: WorshipPlaylist, language: ContentLanguag
     return playlist.translations.some((t) => t.language === language)
 }
 
-/** Small language availability dot for title cells and cards. */
+/** Language availability badge for title cells and cards. */
 function LanguageDot({ language, available }: { language: ContentLanguage; available: boolean }) {
     const label = CONTENT_LANGUAGES.find((l) => l.value === language)?.label ?? language
     return (
-        <span
-            className={`rounded px-1 py-px text-[10px] font-semibold tracking-wide ${
-                available ? 'bg-primary/10 text-primary' : 'bg-muted text-muted-foreground/50 line-through'
-            }`}
+        <Badge
+            variant={available ? 'secondary' : 'outline'}
+            className={available ? undefined : 'text-muted-foreground/50 line-through'}
         >
             {label}
-        </span>
+        </Badge>
     )
 }
 
@@ -696,7 +695,6 @@ export function WorshipMusicUI({
                 ),
             },
         ],
-        // eslint-disable-next-line react-hooks/exhaustive-deps
         [currentPlaying, isPlaying],
     )
 
@@ -757,19 +755,17 @@ export function WorshipMusicUI({
 
             {/* Tab 1: Songs Table */}
             {mainTab === 'songs' && (
-                <div className="rounded-xl border border-border bg-card shadow-sm overflow-hidden">
-                    <DataTable
-                        columns={songColumns}
-                        data={filteredSongs}
-                        loading={songsLoading}
-                        total={searchQuery.trim() ? filteredSongs.length : stats.totalSongs}
-                        page={page}
-                        limit={limit}
-                        noun="worship tracks"
-                        onReset={onResetSearch}
-                        emptyIcon={<Music className="size-8 text-muted-foreground" />}
-                    />
-                </div>
+                <DataTable
+                    columns={songColumns}
+                    data={filteredSongs}
+                    loading={songsLoading}
+                    total={searchQuery.trim() ? filteredSongs.length : stats.totalSongs}
+                    page={page}
+                    limit={limit}
+                    noun="worship tracks"
+                    onReset={onResetSearch}
+                    emptyIcon={<Music className="size-8 text-muted-foreground" />}
+                />
             )}
 
             {/* Tab 2: Featured Playlists */}
@@ -790,7 +786,7 @@ export function WorshipMusicUI({
                             >
                                 <div className="relative aspect-4/3 overflow-hidden bg-muted">
                                     <img src={resolveImage(pl.coverUrl)} alt={pl.title} className="size-full object-cover group-hover:scale-105 transition-transform duration-300" />
-                                    <div className="absolute inset-0 bg-gradient-to-t from-black/80 via-black/20 to-transparent flex flex-col justify-end p-3">
+                                    <div className="absolute inset-0 bg-linear-to-t from-black/80 via-black/20 to-transparent flex flex-col justify-end p-3">
                                         <h4 className="font-bold text-white text-base leading-tight drop-shadow-sm">
                                             {pl.title}
                                         </h4>

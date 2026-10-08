@@ -137,11 +137,11 @@
     --auth-button: #555B51;
     --auth-button-foreground: #ffffff;
 
-    /* Dialog warm palette */
-    --dialog-bg: #FCF7F2;
-    --dialog-border: #E5D4C0;
-    --dialog-text: #38261A;
-    --dialog-muted: #7B7169;
+    /* Dialog palette — neutral system surfaces, matching cards */
+    --dialog-bg: #ffffff;
+    --dialog-border: #e2e8f0;
+    --dialog-text: #2d3748;
+    --dialog-muted: #64748b;
 
     /* Progress status colors */
     --progress-available: rgb(0, 139, 63);
