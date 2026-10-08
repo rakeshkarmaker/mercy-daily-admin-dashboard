@@ -19,6 +19,8 @@ export type Prayer = {
 }
 
 export type PrayerInput = {
+    /** Original language of the top-level fields (en default). */
+    language?: PrayerLanguage
     verse: string
     reference: string
     reflection: string

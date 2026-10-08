@@ -5,6 +5,8 @@ import { useSearchParams } from '@/hooks/use-search-params'
 import { toast } from 'sonner'
 import * as z from 'zod'
 import { PrayerManagementUI } from '@/components/features/prayer-management/prayer-management-ui'
+import type { FilterState } from '@/components/shared/filter-builder'
+import { languageFromFilters } from '@/lib/language'
 import {
     createPrayer,
     deletePrayer,
@@ -18,7 +20,7 @@ import {
     updatePrayer,
     updateSchedule,
 } from '@/api/dailyprayers'
-import type { PrayerInput, PrayerLanguage, PrayerTranslationsSync } from '@/api/dailyprayers'
+import type { PrayerInput, PrayerTranslationsSync } from '@/api/dailyprayers'
 
 const searchSchema = z.object({
     page: z.number().catch(1).optional(),
@@ -37,13 +39,21 @@ function PrayerManagementPage() {
     const mergeSearch = useSearchParams()
     const queryClient = useQueryClient()
 
-    // Active content language — the server projects it onto every row
-    // (single shared Language enum: en|esp|por).
-    const [language, setLanguage] = useState<PrayerLanguage>('en')
+    // Language comes from the shared Add Filter component — the `language`
+    // select drives `?language=`; unset lists everything in its own language.
+    const [filters, setFilters] = useState<FilterState[]>([])
+    const language = languageFromFilters(filters)
 
     const { data, isLoading } = useQuery({
-        queryKey: ['dailyprayers', page, limit, language],
+        queryKey: ['dailyprayers', page, limit, language ?? 'all'],
         queryFn: () => listPrayers({ page, limit, language }),
+    })
+    // Full library for the schedule pickers — the paged table only holds
+    // the current page, but scheduling must offer every prayer.
+    const { data: allPrayersData } = useQuery({
+        queryKey: ['dailyprayers', 'all'],
+        queryFn: () => listPrayers({ page: 1, limit: 1000 }).then((res) => res.data),
+        staleTime: 5 * 60 * 1000,
     })
     const { data: schedules = [] } = useQuery({
         queryKey: ['dailyprayer-schedules'],
@@ -58,7 +68,7 @@ function PrayerManagementPage() {
         const rows = data?.data ?? []
         const query = searchQuery.trim().toLowerCase()
         if (!query) return rows
-        // Search spans the base (English) fields and every stored translation.
+        // Search spans the base (original-language) fields and every stored translation.
         return rows.filter((prayer) =>
             [prayer.verse, prayer.reference, prayer.reflection, prayer.prayer]
                 .some((value) => value.toLowerCase().includes(query)) ||
@@ -112,6 +122,7 @@ function PrayerManagementPage() {
     return (
         <PrayerManagementUI
             prayers={prayers}
+            libraryPrayers={allPrayersData ?? prayers}
             schedules={schedules}
             todayPrayer={todayPrayer}
             todayLoading={isTodayLoading}
@@ -120,8 +131,8 @@ function PrayerManagementPage() {
             page={page}
             limit={limit}
             searchQuery={searchQuery}
-            language={language}
-            onLanguageChange={setLanguage}
+            filters={filters}
+            onFiltersChange={setFilters}
             activeTab={tab}
             onTabChange={(newTab) => mergeSearch({ tab: newTab === 'today' ? undefined : newTab, page: 1 })}
             onSearchChange={(value) => mergeSearch({ search: value || undefined, page: 1 })}
@@ -133,19 +144,6 @@ function PrayerManagementPage() {
                 updateMutation.mutateAsync({ id, input, translations }).then(() => undefined)
             }
             onFetchTranslations={(id) => getPrayerTranslations(id)}
-            onCheckTranslation={async (reference, language) => {
-                const page = await listPrayers({ page: 1, limit: 100 })
-                const query = reference.trim().toLowerCase()
-                const base = page.data.find((p) => p.reference.toLowerCase() === query)
-                if (!base) return null
-                const translations = await getPrayerTranslations(base.id)
-                return translations.some((t) => t.language === language) ? base : null
-            }}
-            onCheckBaseContent={async (reference) => {
-                const page = await listPrayers({ page: 1, limit: 100 })
-                const query = reference.trim().toLowerCase()
-                return page.data.find((p) => p.reference.toLowerCase() === query) ?? null
-            }}
             onDeletePrayer={(id) => deleteMutation.mutateAsync(id).then(() => undefined)}
             onRecordView={async (id) => {
                 try {

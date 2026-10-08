@@ -27,6 +27,7 @@ import {
     Eye,
     HandHeart,
     Languages,
+    TriangleAlert,
     Pencil,
     Plus,
     Quote,
@@ -42,13 +43,16 @@ import type {
     PrayerTranslationsSync,
     TodayPrayer,
 } from '@/api/dailyprayers'
-import { CONTENT_LANGUAGES } from '@/lib/language'
+import { CONTENT_LANGUAGES, LANGUAGE_FILTER_OPTIONS } from '@/lib/language'
 import type { ContentLanguage } from '@/lib/language'
-import { LanguageViewFilter } from '@/components/shared/language-view-filter'
+import { FilterBuilder } from '@/components/shared/filter-builder'
+import type { FilterOption, FilterState } from '@/components/shared/filter-builder'
 import { toast } from 'sonner'
 
 export interface PrayerManagementUIProps {
     prayers: Prayer[]
+    /** Full library for the schedule pickers (the paged `prayers` only holds one page). */
+    libraryPrayers: Prayer[]
     schedules: PrayerSchedule[]
     todayPrayer?: TodayPrayer | null
     todayLoading?: boolean
@@ -59,16 +63,14 @@ export interface PrayerManagementUIProps {
     searchQuery: string
     activeTab?: 'today' | 'library' | 'schedules'
     onTabChange?: (tab: 'today' | 'library' | 'schedules') => void
-    /** Active content language — the server projects it onto every row. */
-    language: ContentLanguage
-    onLanguageChange: (language: ContentLanguage) => void
+    /** FilterBuilder state — the `language` select drives `?language=`. Omit = all languages. */
+    filters: FilterState[]
+    onFiltersChange: (filters: FilterState[]) => void
     onSearchChange: (value: string) => void
     onResetSearch: () => void
     onCreatePrayer: (input: PrayerInput, translations?: PrayerTranslationsSync) => Promise<void>
     onUpdatePrayer: (id: number, input: Partial<PrayerInput>, translations?: PrayerTranslationsSync | null) => Promise<void>
     onFetchTranslations?: (id: number) => Promise<PrayerTranslation[]>
-    onCheckTranslation?: (reference: string, language: 'esp' | 'por') => Promise<Prayer | null>
-    onCheckBaseContent?: (reference: string) => Promise<Prayer | null>
     onDeletePrayer: (id: number) => Promise<void>
     onRecordView?: (id: number) => Promise<void>
     onSchedulePrayer: (id: number, scheduledFor: string) => Promise<void>
@@ -93,11 +95,26 @@ function isFormEmpty(form: FormState): boolean {
     return !form.verse.trim() && !form.reference.trim() && !form.reflection.trim() && !form.prayer.trim()
 }
 
-/** Stored API translations → per-tab edit forms (English lives in the base form). */
-function toLanguageForms(translations?: PrayerTranslation[]): Record<ContentLanguage, FormState> {
+const ORDERED_LANGUAGES = ['en', 'esp', 'por'] as const
+
+/** First filled tab wins — no picker needed. Empty tabs are ignored. */
+function resolveBase(
+    forms: Record<ContentLanguage, FormState>,
+    storedBase?: ContentLanguage,
+): ContentLanguage | undefined {
+    if (storedBase && !isFormEmpty(forms[storedBase])) return storedBase
+    return ORDERED_LANGUAGES.find((l) => !isFormEmpty(forms[l]))
+}
+
+/**
+ * Stored API translations → per-tab edit forms. The base form (edited
+ * separately) holds the row's own language; every other stored
+ * translation fills its tab.
+ */
+function toLanguageForms(translations?: PrayerTranslation[], baseLanguage: ContentLanguage = 'en'): Record<ContentLanguage, FormState> {
     const forms = createEmptyLanguageForms()
     for (const translation of translations ?? []) {
-        if (translation.language === 'en') continue
+        if (translation.language === baseLanguage) continue
         forms[translation.language] = {
             verse: translation.verse,
             reference: translation.reference,
@@ -109,16 +126,16 @@ function toLanguageForms(translations?: PrayerTranslation[]): Record<ContentLang
     return forms
 }
 
-/** Whether the row carries a stored esp/por translation. */
-function hasPrayerLanguage(row: Prayer, code: 'esp' | 'por'): boolean {
+/** Whether the row carries content in that language (originally or translated). */
+function hasPrayerLanguage(row: Prayer, code: ContentLanguage): boolean {
+    if ((row.language ?? 'en') === code) return true
     return (row.translations ?? []).some((t) => t.language === code)
 }
 
 function languageLabelsFor(row: Prayer): string {
-    const labels = ['English']
-    if (hasPrayerLanguage(row, 'esp')) labels.push('Español')
-    if (hasPrayerLanguage(row, 'por')) labels.push('Português')
-    return labels.join(', ')
+    return CONTENT_LANGUAGES.filter((l) => hasPrayerLanguage(row, l.value))
+        .map((l) => l.native)
+        .join(', ')
 }
 
 /** Small language availability dot for verse/reference cells. */
@@ -192,23 +209,25 @@ function getScheduleStatus(dateStr: string) {
     }
 }
 
-/** Content of one language inside the view dialog (falls back to English fields). */
+/** Content of one language inside the view dialog (falls back to the original fields). */
 function ViewLanguageContent({ prayer, language }: { prayer: Prayer; language: ContentLanguage }) {
+    const base = prayer.language ?? 'en'
+    const baseLabel = CONTENT_LANGUAGES.find((l) => l.value === base)?.label ?? base
     const translation = (prayer.translations ?? []).find((t) => t.language === language)
-    const exists = language === 'en' || Boolean(translation)
+    const exists = language === base || Boolean(translation)
 
-    const reference = language === 'en' ? prayer.reference : (translation?.reference ?? prayer.reference)
-    const verse = language === 'en' ? prayer.verse : (translation?.verse ?? prayer.verse)
-    const reflection = language === 'en' ? prayer.reflection : (translation?.reflection ?? prayer.reflection)
-    const guided = language === 'en' ? prayer.prayer : (translation?.prayer ?? prayer.prayer)
-    const practice = language === 'en' ? prayer.practice : (translation?.practice ?? prayer.practice)
+    const reference = language === base ? prayer.reference : (translation?.reference ?? prayer.reference)
+    const verse = language === base ? prayer.verse : (translation?.verse ?? prayer.verse)
+    const reflection = language === base ? prayer.reflection : (translation?.reflection ?? prayer.reflection)
+    const guided = language === base ? prayer.prayer : (translation?.prayer ?? prayer.prayer)
+    const practice = language === base ? prayer.practice : (translation?.practice ?? prayer.practice)
 
     return (
         <div className="space-y-4">
             {!exists && (
                 <p className="flex items-center gap-2 rounded-lg bg-muted/60 px-3 py-2 text-xs text-muted-foreground">
                     <Languages className="size-3.5" />
-                    Not translated yet — showing the English content as fallback.
+                    Not translated yet — showing the {baseLabel} content as fallback.
                 </p>
             )}
             <section className="rounded-xl border border-primary/20 bg-primary/5 p-5">
@@ -278,6 +297,7 @@ function ActionButton({
 
 export function PrayerManagementUI({
     prayers,
+    libraryPrayers,
     schedules,
     todayPrayer,
     todayLoading = false,
@@ -288,15 +308,13 @@ export function PrayerManagementUI({
     searchQuery,
     activeTab = 'today',
     onTabChange,
-    language,
-    onLanguageChange,
+    filters,
+    onFiltersChange,
     onSearchChange,
     onResetSearch,
     onCreatePrayer,
     onUpdatePrayer,
     onFetchTranslations,
-    onCheckTranslation,
-    onCheckBaseContent,
     onDeletePrayer,
     onRecordView,
     onSchedulePrayer,
@@ -308,11 +326,24 @@ export function PrayerManagementUI({
     const [form, setForm] = useState<FormState>(emptyForm)
     const [languageForms, setLanguageForms] = useState<Record<ContentLanguage, FormState>>(createEmptyLanguageForms)
     const [activeLanguage, setActiveLanguage] = useState<ContentLanguage>('en')
+
+    const filterOptions: FilterOption[] = useMemo(
+        () => [
+            {
+                id: 'language',
+                label: 'Language',
+                icon: Languages,
+                type: 'select',
+                options: LANGUAGE_FILTER_OPTIONS,
+            },
+        ],
+        [],
+    )
     const [viewing, setViewing] = useState<Prayer | null>(null)
     const [viewLanguage, setViewLanguage] = useState<ContentLanguage>('en')
     const [deleting, setDeleting] = useState<Prayer | null>(null)
-    const [scheduling, setScheduling] = useState<Prayer | null>(null)
-    const [scheduledFor, setScheduledFor] = useState(new Date().toISOString().slice(0, 10))
+    /** Preselected prayer when the create dialog opens from a library row. */
+    const [schedulePresetId, setSchedulePresetId] = useState<number | null>(null)
     const [saving, setSaving] = useState(false)
     const [copied, setCopied] = useState(false)
 
@@ -323,7 +354,7 @@ export function PrayerManagementUI({
 
     const openView = (prayer: Prayer) => {
         setViewing(prayer)
-        setViewLanguage('en')
+        setViewLanguage(prayer.language ?? 'en')
         // Count the view (fire-and-forget; the route refreshes the counters).
         if (onRecordView) onRecordView(prayer.id).catch(() => undefined)
     }
@@ -337,8 +368,9 @@ export function PrayerManagementUI({
     }
 
     const openEdit = (prayer: Prayer) => {
+        const base = prayer.language ?? 'en'
         setEditing(prayer)
-        setActiveLanguage('en')
+        setActiveLanguage(base)
         setForm({
             verse: prayer.verse,
             reference: prayer.reference,
@@ -346,16 +378,16 @@ export function PrayerManagementUI({
             prayer: prayer.prayer,
             practice: prayer.practice ?? '',
         })
-        // Preload saved translations into the language tabs (English tab edits
-        // the canonical base row). Rows from the list/detail endpoints already
+        // Preload saved translations into the language tabs (the base tab
+        // edits the base row). Rows from the list/detail endpoints already
         // carry `translations`, so this is synchronous — no wipe race, no stale
         // tabs leaking in from a previous edit.
-        setLanguageForms(toLanguageForms(prayer.translations))
+        setLanguageForms(toLanguageForms(prayer.translations, base))
         setFormOpen(true)
         // Fallback for rows without embedded translations (defensive).
         if (!prayer.translations && onFetchTranslations) {
             onFetchTranslations(prayer.id)
-                .then((translations) => setLanguageForms(toLanguageForms(translations)))
+                .then((translations) => setLanguageForms(toLanguageForms(translations, base)))
                 .catch(() => undefined)
         }
     }
@@ -381,7 +413,9 @@ export function PrayerManagementUI({
             if (match) {
                 openEdit(match)
             } else {
+                const base = todayPrayer.language ?? 'en'
                 setEditing(null)
+                setActiveLanguage(base)
                 setForm({
                     verse: todayPrayer.verse,
                     reference: todayPrayer.reference,
@@ -406,41 +440,41 @@ export function PrayerManagementUI({
     }
 
     const submitForm = async () => {
-        const values = editing ? form : languageForms[activeLanguage]
+        // First filled tab wins — no picker needed. Empty tabs are ignored
+        // on create and clear that translation on edit.
+        if (editing) {
+            const storedBase = editing.language ?? 'en'
+            // If the base tab was emptied but another tab is filled, the base
+            // shifts to that tab (backend folds the old translation away).
+            const shifted = isFormEmpty(form) ? resolveBase(languageForms, undefined) : undefined
+            const base: ContentLanguage = shifted ?? storedBase
+            const values = shifted ? languageForms[shifted] : form
+            if (!values.verse.trim() || !values.reference.trim() || !values.prayer.trim()) return
+            setSaving(true)
+            try {
+                const others = (['en', 'esp', 'por'] as ContentLanguage[]).filter((l) => l !== base)
+                const items: PrayerTranslationInput[] = others
+                    .filter((l) => !isFormEmpty(languageForms[l]))
+                    .map((l) => formToTranslationInput(l, languageForms[l]))
+                const clearLanguages = others.filter((l) => isFormEmpty(languageForms[l]))
+                const translations: PrayerTranslationsSync = { items, clearLanguages }
+                await onUpdatePrayer(editing.id, { ...values, language: base }, translations)
+                setFormOpen(false)
+            } finally {
+                setSaving(false)
+            }
+            return
+        }
+        const base = resolveBase(languageForms, undefined)
+        if (!base) return
+        const values = languageForms[base]
         if (!values.verse.trim() || !values.reference.trim() || !values.prayer.trim()) return
         setSaving(true)
         try {
-            if (editing) {
-                // Sync the translation set: upsert filled tabs, clear tabs the
-                // user emptied. Omit the key entirely while loading preloads.
-                const items: PrayerTranslationInput[] = (['esp', 'por'] as ContentLanguage[])
-                    .filter((language) => !isFormEmpty(languageForms[language]))
-                    .map((language) => formToTranslationInput(language, languageForms[language]))
-                const clearLanguages = (['esp', 'por'] as ContentLanguage[])
-                    .filter((language) => isFormEmpty(languageForms[language]))
-                const translations: PrayerTranslationsSync = { items, clearLanguages }
-                await onUpdatePrayer(editing.id, values, translations)
-            } else {
-                const items = (['esp', 'por'] as ContentLanguage[])
-                    .filter((language) => !isFormEmpty(languageForms[language]))
-                    .map((language) => formToTranslationInput(language, languageForms[language]))
-                // Soft warnings for translation-only creates.
-                if (activeLanguage !== 'en' && onCheckBaseContent) {
-                    const label = CONTENT_LANGUAGES.find((l) => l.value === activeLanguage)?.label ?? activeLanguage
-                    const base = await onCheckBaseContent(values.reference)
-                    if (!base) {
-                        toast.warning(
-                            `No English prayer found for "${values.reference}" — this will be created as a standalone ${label} prayer.`,
-                        )
-                    } else if (onCheckTranslation) {
-                        const existing = await onCheckTranslation(values.reference, activeLanguage as 'esp' | 'por')
-                        if (existing) {
-                            toast.warning(`A ${label} translation for ${values.reference} already exists — saving will overwrite it.`)
-                        }
-                    }
-                }
-                await onCreatePrayer(values, { items })
-            }
+            const items = (['en', 'esp', 'por'] as ContentLanguage[])
+                .filter((l) => l !== base && !isFormEmpty(languageForms[l]))
+                .map((l) => formToTranslationInput(l, languageForms[l]))
+            await onCreatePrayer({ ...values, language: base }, { items })
             setFormOpen(false)
         } finally {
             setSaving(false)
@@ -470,9 +504,16 @@ export function PrayerManagementUI({
         try {
             await onSchedulePrayer(prayerId, date)
             setCreateScheduleOpen(false)
+            setSchedulePresetId(null)
         } finally {
             setSaving(false)
         }
+    }
+
+    /** Single entry point for scheduling: optional preset when opened from a library row. */
+    const openCreateSchedule = (prayerId?: number) => {
+        setSchedulePresetId(prayerId ?? null)
+        setCreateScheduleOpen(true)
     }
 
     const scheduleColumns = useMemo<DataTableColumn<PrayerSchedule>[]>(
@@ -501,9 +542,9 @@ export function PrayerManagementUI({
                     <div className="flex min-w-0 items-center gap-2">
                         <span className="font-semibold text-foreground">{row.prayer.reference}</span>
                         <span className="flex flex-none items-center gap-0.5" title={`Languages: ${languageLabelsFor(row.prayer)}`}>
-                            <LanguageDot language="en" available />
-                            <LanguageDot language="esp" available={hasPrayerLanguage(row.prayer, 'esp')} />
-                            <LanguageDot language="por" available={hasPrayerLanguage(row.prayer, 'por')} />
+                            {CONTENT_LANGUAGES.map((l) => (
+                                <LanguageDot key={l.value} language={l.value} available={hasPrayerLanguage(row.prayer, l.value)} />
+                            ))}
                         </span>
                     </div>
                 ),
@@ -557,45 +598,26 @@ export function PrayerManagementUI({
                 key: 'verse',
                 header: 'VERSE',
                 render: (row) => (
-                    <div className="flex min-w-0 items-center gap-2">
-                        <span className="font-semibold text-foreground line-clamp-2 max-w-70 break-words">{row.verse}</span>
-                        <span className="flex flex-none items-center gap-0.5" title={`Languages: ${languageLabelsFor(row)}`}>
-                            <LanguageDot language="en" available />
-                            <LanguageDot language="esp" available={hasPrayerLanguage(row, 'esp')} />
-                            <LanguageDot language="por" available={hasPrayerLanguage(row, 'por')} />
+                    <div className="flex min-w-0 flex-col gap-1">
+                        <span className="font-semibold text-foreground line-clamp-2 max-w-52 break-words">{row.verse}</span>
+                        <span className="flex items-center gap-0.5" title={`Languages: ${languageLabelsFor(row)}`}>
+                            {CONTENT_LANGUAGES.map((l) => (
+                                <LanguageDot key={l.value} language={l.value} available={hasPrayerLanguage(row, l.value)} />
+                            ))}
                         </span>
                     </div>
                 ),
             },
             { key: 'reference', header: 'REFERENCE', render: (row) => <span className="text-muted-foreground">{row.reference}</span> },
             {
-                key: 'views',
-                header: 'VIEWS',
-                render: (row) => (
-                    <span className="text-muted-foreground tabular-nums">{(row.viewsCount ?? 0).toLocaleString()}</span>
-                ),
-            },
-            {
                 key: 'prayer',
                 header: 'PRAYER',
-                render: (row) => <span className="text-muted-foreground line-clamp-2 max-w-90 break-words">{row.prayer}</span>,
+                render: (row) => <span className="text-muted-foreground line-clamp-2 max-w-60 break-words">{row.prayer}</span>,
             },
             {
                 key: 'updatedAt',
                 header: 'UPDATED',
                 render: (row) => <span className="text-muted-foreground">{new Date(row.updatedAt).toLocaleDateString()}</span>,
-            },
-            {
-                key: 'practice',
-                header: 'PRACTICAL STEP',
-                render: (row) =>
-                    row.practice ? (
-                        <span className="line-clamp-2 max-w-60 break-words text-xs text-muted-foreground" title={row.practice}>
-                            {row.practice}
-                        </span>
-                    ) : (
-                        <span className="text-xs text-muted-foreground/40 italic">None</span>
-                    ),
             },
             {
                 key: 'actions',
@@ -613,10 +635,7 @@ export function PrayerManagementUI({
                         </ActionButton>
                         <ActionButton
                             label="Schedule Date"
-                            onClick={() => {
-                                setScheduling(row)
-                                setScheduledFor(new Date().toISOString().slice(0, 10))
-                            }}
+                            onClick={() => openCreateSchedule(row.id)}
                             className="text-info hover:bg-info/10"
                         >
                             <Calendar className="size-4" />
@@ -643,7 +662,7 @@ export function PrayerManagementUI({
                     description="Manage today's active devotion, daily prayer library, and scheduled overrides."
                 />
                 <div className="flex flex-wrap items-center gap-3">
-                    <LanguageViewFilter value={language} onChange={onLanguageChange} />
+                    <FilterBuilder options={filterOptions} filters={filters} onFiltersChange={onFiltersChange} />
                     <SearchInput
                         value={searchQuery}
                         onValueChange={onSearchChange}
@@ -747,16 +766,24 @@ export function PrayerManagementUI({
                                                     Scripture Verse
                                                 </span>
                                                 <span className="flex items-center gap-2">
-                                                    {(todayPrayer.translations ?? []).length > 0 && (
-                                                        <span
-                                                            className="flex items-center gap-0.5"
-                                                            title={`Languages: ${['en', ...(todayPrayer.translations ?? []).map((t) => t.language)].map((code) => CONTENT_LANGUAGES.find((l) => l.value === code)?.label ?? code).join(', ')}`}
-                                                        >
-                                                            <LanguageDot language="en" available />
-                                                            <LanguageDot language="esp" available={(todayPrayer.translations ?? []).some((t) => t.language === 'esp')} />
-                                                            <LanguageDot language="por" available={(todayPrayer.translations ?? []).some((t) => t.language === 'por')} />
-                                                        </span>
-                                                    )}
+                                                    {(() => {
+                                                        const base = todayPrayer.language ?? 'en'
+                                                        const codes = [base, ...((todayPrayer.translations ?? []).map((t) => t.language))]
+                                                        return (
+                                                            <span
+                                                                className="flex items-center gap-0.5"
+                                                                title={`Languages: ${codes.map((code) => CONTENT_LANGUAGES.find((l) => l.value === code)?.label ?? code).join(', ')}`}
+                                                            >
+                                                                {CONTENT_LANGUAGES.map((l) => (
+                                                                    <LanguageDot
+                                                                        key={l.value}
+                                                                        language={l.value}
+                                                                        available={l.value === base || (todayPrayer.translations ?? []).some((t) => t.language === l.value)}
+                                                                    />
+                                                                ))}
+                                                            </span>
+                                                        )
+                                                    })()}
                                                     <Badge className="bg-primary/15 text-primary border-primary/30 text-xs font-semibold">
                                                         {todayPrayer.reference}
                                                     </Badge>
@@ -861,7 +888,7 @@ export function PrayerManagementUI({
                             </p>
                         </div>
                         <Button
-                            onClick={() => setCreateScheduleOpen(true)}
+                            onClick={() => openCreateSchedule()}
                             className="gap-2 bg-[#53624D] hover:bg-[#43503e] text-white shrink-0"
                             size="sm"
                         >
@@ -951,47 +978,6 @@ export function PrayerManagementUI({
                 </DialogContent>
             </Dialog>
 
-            {/* Schedule Prayer Dialog */}
-            <Dialog open={scheduling !== null} onOpenChange={(open) => !open && setScheduling(null)}>
-                <DialogContent className="sm:max-w-md">
-                    <DialogHeader>
-                        <DialogTitle>Schedule prayer override</DialogTitle>
-                        <DialogDescription>
-                            Override the prayer shown on a specific date for all community members.
-                        </DialogDescription>
-                    </DialogHeader>
-                    {scheduling && (
-                        <div className="space-y-4 py-2">
-                            <div className="rounded-lg border border-border/70 p-3 bg-muted/20">
-                                <p className="font-semibold text-sm text-foreground">{scheduling.reference}</p>
-                                <p className="line-clamp-2 text-xs text-muted-foreground mt-1">“{scheduling.verse}”</p>
-                            </div>
-                            <div className="space-y-1.5">
-                                <label className="text-xs font-semibold text-muted-foreground uppercase">Scheduled date</label>
-                                <Input
-                                    type="date"
-                                    value={scheduledFor}
-                                    onChange={(event) => setScheduledFor(event.target.value)}
-                                />
-                            </div>
-                        </div>
-                    )}
-                    <DialogFooter>
-                        <Button variant="outline" onClick={() => setScheduling(null)}>Cancel</Button>
-                        <Button
-                            onClick={async () => {
-                                if (!scheduling) return
-                                await onSchedulePrayer(scheduling.id, scheduledFor)
-                                setScheduling(null)
-                            }}
-                            className="bg-[#53624D] hover:bg-[#43503e] text-white"
-                        >
-                            Save schedule
-                        </Button>
-                    </DialogFooter>
-                </DialogContent>
-            </Dialog>
-
             {/* Trash Confirmation */}
             <TrashConfirm
                 open={deleting !== null}
@@ -1027,7 +1013,8 @@ export function PrayerManagementUI({
             {/* Edit / Reschedule Dialog */}
             <EditScheduleDialog
                 schedule={editingSchedule}
-                prayers={prayers}
+                prayers={libraryPrayers}
+                schedules={schedules}
                 saving={saving}
                 onOpenChange={(open) => !open && setEditingSchedule(null)}
                 onSave={handleUpdateSchedule}
@@ -1036,7 +1023,9 @@ export function PrayerManagementUI({
             {/* Create Schedule Dialog */}
             <CreateScheduleDialog
                 open={createScheduleOpen}
-                prayers={prayers}
+                prayers={libraryPrayers}
+                schedules={schedules}
+                initialPrayerId={schedulePresetId}
                 saving={saving}
                 onOpenChange={setCreateScheduleOpen}
                 onSchedule={handleCreateSchedule}
@@ -1070,11 +1059,13 @@ function PrayerFormDialog({
     onLanguageFormChange: (language: ContentLanguage, form: FormState) => void
     onSubmit: () => Promise<void>
 }) {
-    // Create: every tab (incl. English) is a language form. Edit: the English
-    // tab edits the canonical base row, ES/PT tabs edit the translation forms.
-    const activeForm = !editing || activeLanguage === 'en' ? (editing ? form : languageForms[activeLanguage]) : languageForms[activeLanguage]
+    // First filled tab wins — no picker needed. Edit: the stored base tab
+    // edits the base row, the other tabs edit the translation forms.
+    const storedBase = editing ? (editing.language ?? 'en') : undefined
+    const isBaseTab = editing ? activeLanguage === storedBase : true
+    const activeForm = editing && isBaseTab ? form : languageForms[activeLanguage]
     const updateField = (field: keyof FormState, value: string) => {
-        if (editing && activeLanguage === 'en') {
+        if (editing && isBaseTab) {
             onChange({ ...form, [field]: value })
             return
         }
@@ -1083,9 +1074,10 @@ function PrayerFormDialog({
             [field]: value,
         })
     }
-    const canSubmit = editing
-        ? form.verse.trim() && form.reference.trim() && form.prayer.trim()
-        : activeForm.verse.trim() && activeForm.reference.trim() && activeForm.prayer.trim()
+    const checkForm = editing
+        ? (isFormEmpty(form) ? (resolveBase(languageForms, undefined) ? languageForms[resolveBase(languageForms, undefined)!] : form) : form)
+        : (resolveBase(languageForms, undefined) ? languageForms[resolveBase(languageForms, undefined)!] : languageForms.en)
+    const canSubmit = checkForm.verse.trim() && checkForm.reference.trim() && checkForm.prayer.trim()
 
     return (
         <Dialog open={open} onOpenChange={onOpenChange}>
@@ -1093,16 +1085,14 @@ function PrayerFormDialog({
                 <DialogHeader>
                     <DialogTitle>{editing ? 'Edit Daily Prayer' : 'Create Daily Prayer'}</DialogTitle>
                     <DialogDescription>
-                        {editing
-                            ? `Update devotional content for ${editing.reference}.`
-                            : 'Add devotional content for the Mercy Daily community.'}
+                        Fill any language tab — the first filled tab becomes the prayer. Empty tabs are ignored.
                     </DialogDescription>
                 </DialogHeader>
 
                 <div className="flex gap-2 border-b border-border/50 pb-2">
                     {CONTENT_LANGUAGES.map((lang) => {
-                        const tabForm = lang.value === 'en' && editing ? form : languageForms[lang.value]
-                        const filled = lang.value !== 'en' && !isFormEmpty(tabForm)
+                        const tabForm = editing && lang.value === storedBase ? form : languageForms[lang.value]
+                        const filled = !isFormEmpty(tabForm)
                         return (
                             <Button
                                 key={lang.value}
@@ -1204,9 +1194,12 @@ function PrayerSelector({
             (p) =>
                 p.reference.toLowerCase().includes(query) ||
                 p.verse.toLowerCase().includes(query) ||
-                p.reflection.toLowerCase().includes(query),
+                p.reflection.toLowerCase().includes(query) ||
+                p.prayer.toLowerCase().includes(query),
         )
     }, [prayers, search])
+    // Cap the unfiltered render for large libraries; searching shows every match.
+    const visible = search.trim() ? filtered : filtered.slice(0, 100)
 
     return (
         <div className="space-y-2">
@@ -1219,13 +1212,18 @@ function PrayerSelector({
                     className="pl-8 text-xs h-9"
                 />
             </div>
+            <p className="text-[11px] text-muted-foreground">
+                {search.trim()
+                    ? `${filtered.length} match${filtered.length === 1 ? '' : 'es'}`
+                    : `Showing ${visible.length} of ${prayers.length} prayers — type to search the full library`}
+            </p>
             <div className="max-h-52 overflow-y-auto space-y-1.5 rounded-lg border border-border/60 p-1.5 bg-background">
                 {filtered.length === 0 ? (
                     <div className="py-6 text-center text-xs text-muted-foreground">
                         No prayers matching "{search}"
                     </div>
                 ) : (
-                    filtered.map((prayer) => {
+                    visible.map((prayer) => {
                         const isSelected = prayer.id === selectedId
                         return (
                             <button
@@ -1255,16 +1253,19 @@ function PrayerSelector({
 function EditScheduleDialog({
     schedule,
     prayers,
+    schedules,
     saving,
     onOpenChange,
     onSave,
 }: {
     schedule: PrayerSchedule | null
     prayers: Prayer[]
+    schedules: PrayerSchedule[]
     saving: boolean
     onOpenChange: (open: boolean) => void
     onSave: (date: string, prayerId: number) => Promise<void>
 }) {
+    const today = new Date().toISOString().slice(0, 10)
     const [date, setDate] = useState('')
     const [selectedPrayerId, setSelectedPrayerId] = useState<number | null>(null)
 
@@ -1278,6 +1279,10 @@ function EditScheduleDialog({
     if (!schedule) return null
 
     const currentAssigned = prayers.find((p) => p.id === selectedPrayerId) || schedule.prayer
+    // A date move onto another override's date fails server-side — flag it upfront.
+    const conflict = schedules.find(
+        (s) => s.id !== schedule.id && s.scheduledFor.slice(0, 10) === date,
+    )
 
     return (
         <Dialog open={schedule !== null} onOpenChange={onOpenChange}>
@@ -1295,9 +1300,16 @@ function EditScheduleDialog({
                         <Input
                             type="date"
                             value={date}
+                            min={today}
                             onChange={(e) => setDate(e.target.value)}
                         />
                     </div>
+
+                    {conflict && (
+                        <ScheduleConflictWarning
+                            message={`${conflict.prayer.reference} already uses ${formatScheduleDate(date)} — pick a free date or remove that override first.`}
+                        />
+                    )}
 
                     <div className="space-y-1.5">
                         <label className="text-xs font-semibold text-muted-foreground uppercase">Currently Selected</label>
@@ -1325,7 +1337,7 @@ function EditScheduleDialog({
                                 onSave(date, selectedPrayerId)
                             }
                         }}
-                        disabled={saving || !date || !selectedPrayerId}
+                        disabled={saving || !date || !selectedPrayerId || Boolean(conflict)}
                         className="bg-[#53624D] hover:bg-[#43503e] text-white"
                     >
                         {saving ? 'Saving...' : 'Save Changes'}
@@ -1339,24 +1351,48 @@ function EditScheduleDialog({
 function CreateScheduleDialog({
     open,
     prayers,
+    schedules,
+    initialPrayerId,
     saving,
     onOpenChange,
     onSchedule,
 }: {
     open: boolean
     prayers: Prayer[]
+    schedules: PrayerSchedule[]
+    initialPrayerId: number | null
     saving: boolean
     onOpenChange: (open: boolean) => void
     onSchedule: (prayerId: number, date: string) => Promise<void>
 }) {
-    const [date, setDate] = useState(new Date().toISOString().slice(0, 10))
-    const [selectedPrayerId, setSelectedPrayerId] = useState<number | null>(prayers[0]?.id ?? null)
+    const today = new Date().toISOString().slice(0, 10)
+    const [date, setDate] = useState(today)
+    const [selectedPrayerId, setSelectedPrayerId] = useState<number | null>(null)
 
+    // Fresh state on every open: today as the date, the preset prayer (when
+    // opened from a library row) or the first library entry otherwise.
     useEffect(() => {
-        if (open && prayers.length > 0 && !selectedPrayerId) {
+        if (open) {
+            setDate(today)
+            setSelectedPrayerId(initialPrayerId ?? prayers[0]?.id ?? null)
+        }
+        // eslint-disable-next-line react-hooks/exhaustive-deps
+    }, [open, initialPrayerId])
+
+    // The library may still be loading when the dialog opens — pick the
+    // first entry once it arrives (never overrides an explicit choice).
+    useEffect(() => {
+        if (open && !selectedPrayerId && prayers.length > 0) {
             setSelectedPrayerId(prayers[0].id)
         }
-    }, [open, prayers, selectedPrayerId])
+        // eslint-disable-next-line react-hooks/exhaustive-deps
+    }, [open, prayers])
+
+    const selected = prayers.find((p) => p.id === selectedPrayerId) ?? null
+    // Scheduling is an upsert per date — warn when this replaces another override.
+    const conflict = schedules.find(
+        (s) => s.scheduledFor.slice(0, 10) === date && s.prayer.id !== selectedPrayerId,
+    )
 
     return (
         <Dialog open={open} onOpenChange={onOpenChange}>
@@ -1374,9 +1410,26 @@ function CreateScheduleDialog({
                         <Input
                             type="date"
                             value={date}
+                            min={today}
                             onChange={(e) => setDate(e.target.value)}
                         />
                     </div>
+
+                    {conflict && (
+                        <ScheduleConflictWarning
+                            message={`${conflict.prayer.reference} is already featured on ${formatScheduleDate(date)} — saving replaces it.`}
+                        />
+                    )}
+
+                    {selected && (
+                        <div className="space-y-1.5">
+                            <label className="text-xs font-semibold text-muted-foreground uppercase">Selected Prayer</label>
+                            <div className="rounded-lg border border-[#53624D]/40 bg-[#53624D]/5 p-2.5 text-xs">
+                                <p className="font-semibold text-foreground">{selected.reference}</p>
+                                <p className="line-clamp-2 italic text-muted-foreground mt-0.5">“{selected.verse}”</p>
+                            </div>
+                        </div>
+                    )}
 
                     <div className="space-y-1.5">
                         <label className="text-xs font-semibold text-muted-foreground uppercase">Select Prayer from Library *</label>
@@ -1404,5 +1457,15 @@ function CreateScheduleDialog({
                 </DialogFooter>
             </DialogContent>
         </Dialog>
+    )
+}
+
+/** Amber warning when the chosen date collides with another override. */
+function ScheduleConflictWarning({ message }: { message: string }) {
+    return (
+        <p className="flex items-start gap-2 rounded-lg border border-warning/30 bg-warning/10 px-3 py-2 text-xs text-foreground">
+            <TriangleAlert className="mt-0.5 size-3.5 shrink-0 text-warning" />
+            {message}
+        </p>
     )
 }
