@@ -12,7 +12,7 @@ export type SermonTopic = {
     slug: string
 }
 
-/** Per-language content block (esp/por rows; en mirrors the base fields). */
+/** Per-language content block (rows for languages other than the base one). */
 export type SermonTranslation = {
     language: SermonLanguage
     title: string
@@ -55,6 +55,8 @@ export type SermonTranslationInput = {
 }
 
 export type SermonInput = {
+    /** Original language of the top-level fields (en default). */
+    language?: SermonLanguage
     title: string
     overview?: string
     thumbnailUrl?: string
@@ -74,7 +76,7 @@ export type PaginatedSermons = {
  * Admin-aware listing: without a status filter the API returns the
  * PUBLISHED feed; pass DRAFT/PUBLISHED/ARCHIVED/ALL (admin only) to
  * manage non-published sermons. `language` (en|esp|por) filters sermons
- * that have that language's content (en/default matches all).
+ * available in that language (omit to list all).
  */
 export type { ContentLanguage } from '@/lib/language'
 

@@ -12,11 +12,12 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@
 import { Input } from '@/components/ui/input'
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs'
 import { Textarea } from '@/components/ui/textarea'
-import { Eye, Languages, Pencil, Plus, ThumbsUp, Trash2, Youtube } from 'lucide-react'
+import { Eye, Languages, Pencil, Plus, ThumbsUp, Trash2, Youtube, Languages as LanguagesIcon } from 'lucide-react'
 import { toast } from 'sonner'
 import { resolveImage } from '@/api/base'
-import { LanguageViewFilter } from '@/components/shared/language-view-filter'
-import { CONTENT_LANGUAGES } from '@/lib/language'
+import { FilterBuilder } from '@/components/shared/filter-builder'
+import type { FilterOption, FilterState } from '@/components/shared/filter-builder'
+import { CONTENT_LANGUAGES, LANGUAGE_FILTER_OPTIONS } from '@/lib/language'
 import type { Sermon, SermonInput, SermonLanguage, SermonStatus, SermonTranslationInput } from '@/api/sermons'
 
 type StatusFilter = SermonStatus | 'ALL'
@@ -29,12 +30,12 @@ export interface SermonsUIProps {
     limit: number
     searchQuery: string
     status: StatusFilter
-    /** Active content language — the server projects it onto every row. */
-    language: SermonLanguage
+    /** FilterBuilder state — the `language` select drives `?language=`. Omit = all languages. */
+    filters: FilterState[]
+    onFiltersChange: (filters: FilterState[]) => void
     onSearchChange: (value: string) => void
     onResetSearch: () => void
     onStatusChange: (value: StatusFilter) => void
-    onLanguageChange: (language: SermonLanguage) => void
     onCreateSermon: (input: SermonInput) => Promise<void>
     onUpdateSermon: (id: string, input: Partial<SermonInput>) => Promise<void>
     onDeleteSermon: (id: string) => Promise<void>
@@ -60,27 +61,42 @@ const createEmptyLanguageForms = (): LanguageForms => ({
     por: emptyLanguageForm(),
 })
 
-/** Forms from an existing sermon: en = top-level fields, esp/por = translation rows. */
-const languageFormsFromSermon = (sermon: Sermon): LanguageForms => ({
-    en: {
+const ORDERED_LANGUAGES = ['en', 'esp', 'por'] as const
+
+/**
+ * Which tab holds the top-level fields: the stored base language while it
+ * still has a title, otherwise the first filled tab. No picker needed —
+ * filling any language just works.
+ */
+function resolveBase(forms: LanguageForms, storedBase?: SermonLanguage): SermonLanguage | undefined {
+    if (storedBase && forms[storedBase].title.trim()) return storedBase
+    return ORDERED_LANGUAGES.find((l) => forms[l].title.trim())
+}
+
+/**
+ * Forms from an existing sermon: the top-level fields edit the sermon's
+ * own (original) language tab; every stored translation fills its tab.
+ */
+const languageFormsFromSermon = (sermon: Sermon): LanguageForms => {
+    const forms = createEmptyLanguageForms()
+    const base = sermon.language ?? 'en'
+    forms[base] = {
         title: sermon.title,
         overview: sermon.overview ?? '',
         thumbnailUrl: sermon.thumbnailUrl ?? '',
         youtubeUrl: sermon.youtubeUrl ?? '',
-    },
-    esp: (() => {
-        const t = sermon.translations.find((t) => t.language === 'esp')
-        return t
-            ? { title: t.title, overview: t.overview ?? '', thumbnailUrl: t.thumbnailUrl ?? '', youtubeUrl: t.youtubeUrl ?? '' }
-            : emptyLanguageForm()
-    })(),
-    por: (() => {
-        const t = sermon.translations.find((t) => t.language === 'por')
-        return t
-            ? { title: t.title, overview: t.overview ?? '', thumbnailUrl: t.thumbnailUrl ?? '', youtubeUrl: t.youtubeUrl ?? '' }
-            : emptyLanguageForm()
-    })(),
-})
+    }
+    for (const t of sermon.translations) {
+        if (t.language === base) continue
+        forms[t.language] = {
+            title: t.title,
+            overview: t.overview ?? '',
+            thumbnailUrl: t.thumbnailUrl ?? '',
+            youtubeUrl: t.youtubeUrl ?? '',
+        }
+    }
+    return forms
+}
 
 const STATUS_BADGE: Record<SermonStatus, string> = {
     PUBLISHED: 'bg-success/10 text-success',
@@ -96,11 +112,11 @@ export function SermonsUI({
     limit,
     searchQuery,
     status,
-    language,
+    filters,
+    onFiltersChange,
     onSearchChange,
     onResetSearch,
     onStatusChange,
-    onLanguageChange,
     onCreateSermon,
     onUpdateSermon,
     onDeleteSermon,
@@ -114,6 +130,19 @@ export function SermonsUI({
     const [deleting, setDeleting] = useState<Sermon | null>(null)
     const [saving, setSaving] = useState(false)
 
+    const filterOptions: FilterOption[] = useMemo(
+        () => [
+            {
+                id: 'language',
+                label: 'Language',
+                icon: LanguagesIcon,
+                type: 'select',
+                options: LANGUAGE_FILTER_OPTIONS,
+            },
+        ],
+        [],
+    )
+
     const openCreate = () => {
         setEditing(null)
         setLanguageForms(createEmptyLanguageForms())
@@ -126,21 +155,24 @@ export function SermonsUI({
         setEditing(sermon)
         setLanguageForms(languageFormsFromSermon(sermon))
         setSharedStatus(sermon.status)
-        setActiveLanguage('en')
+        setActiveLanguage(sermon.language ?? 'en')
         setFormOpen(true)
     }
 
     const submitForm = async () => {
-        const en = languageForms.en
-        if (!en.title.trim() || !en.youtubeUrl.trim()) {
-            toast.error('English title and YouTube link are required.')
+        // First filled tab wins — no picker needed. Empty tabs are ignored
+        // on create and remove that translation on edit.
+        const base = resolveBase(languageForms, editing ? (editing.language ?? 'en') : undefined)
+        if (!base) return
+        const baseForm = languageForms[base]
+        if (!baseForm.title.trim() || !baseForm.youtubeUrl.trim()) {
+            toast.error('Title and YouTube link are required in at least one language.')
             return
         }
 
-        // esp/por blocks: an empty title means "remove this translation" on
-        // update; on create the backend ignores blocks without a title.
         const translations: SermonTranslationInput[] = []
-        for (const language of ['esp', 'por'] as const) {
+        for (const language of ORDERED_LANGUAGES) {
+            if (language === base) continue
             const form = languageForms[language]
             if (form.title.trim()) {
                 translations.push({
@@ -156,10 +188,11 @@ export function SermonsUI({
         }
 
         const input: SermonInput = {
-            title: en.title.trim(),
-            overview: en.overview.trim() || undefined,
-            thumbnailUrl: en.thumbnailUrl.trim() || undefined,
-            youtubeUrl: en.youtubeUrl.trim(),
+            language: base,
+            title: baseForm.title.trim(),
+            overview: baseForm.overview.trim() || undefined,
+            thumbnailUrl: baseForm.thumbnailUrl.trim() || undefined,
+            youtubeUrl: baseForm.youtubeUrl.trim(),
             status: sharedStatus,
             translations,
         }
@@ -271,7 +304,7 @@ export function SermonsUI({
             <div className="flex flex-col gap-4 border-b border-border/50 pb-4 lg:flex-row lg:items-center lg:justify-between">
                 <PageHeader title="Sermons" description="Publish video sermons in English, Spanish and Portuguese, manage drafts and review engagement." />
                 <div className="flex flex-wrap items-center gap-3">
-                    <LanguageViewFilter value={language} onChange={onLanguageChange} />
+                    <FilterBuilder options={filterOptions} filters={filters} onFiltersChange={onFiltersChange} />
                     <SearchInput
                         value={searchQuery}
                         onValueChange={onSearchChange}
@@ -348,7 +381,7 @@ export function SermonsUI({
 
 /** True when the sermon actually has content in that language. */
 function hasLanguage(sermon: Sermon, language: SermonLanguage): boolean {
-    if (language === 'en') return true
+    if ((sermon.language ?? 'en') === language) return true
     return sermon.translations.some((t) => t.language === language)
 }
 
@@ -379,12 +412,10 @@ function LanguageDot({ language, available }: { language: SermonLanguage; availa
 function LanguageFields({
     values,
     disabled,
-    isEnglish,
     onChange,
 }: {
     values: LanguageFormState
     disabled?: boolean
-    isEnglish: boolean
     onChange: (form: LanguageFormState) => void
 }) {
     const set = (key: keyof LanguageFormState, value: string) => onChange({ ...values, [key]: value })
@@ -392,7 +423,7 @@ function LanguageFields({
     return (
         <div className="grid gap-3">
             <label className="grid gap-1.5 text-sm font-medium">
-                Title {!isEnglish && <span className="text-xs font-normal text-muted-foreground">(leave empty to remove this translation)</span>}
+                Title
                 <Input
                     value={values.title}
                     onChange={(event) => set('title', event.target.value)}
@@ -405,14 +436,11 @@ function LanguageFields({
                 <Textarea value={values.overview} onChange={(event) => set('overview', event.target.value)} placeholder="What is this sermon about?" aria-label="Overview" />
             </label>
             <div className="grid gap-1.5 text-sm font-medium">
-                <span>
-                    Thumbnail{' '}
-                    {!isEnglish && <span className="text-xs font-normal text-muted-foreground">(empty reuses the English thumbnail)</span>}
-                </span>
+                <span>Thumbnail</span>
                 <ThumbnailField value={values.thumbnailUrl} disabled={disabled} onChange={(url) => set('thumbnailUrl', url)} />
             </div>
             <label className="grid gap-1.5 text-sm font-medium">
-                YouTube link {!isEnglish && <span className="text-xs font-normal text-muted-foreground">(empty reuses the English video)</span>}
+                YouTube link
                 <Input value={values.youtubeUrl} onChange={(event) => set('youtubeUrl', event.target.value)} placeholder="https://www.youtube.com/watch?v=..." aria-label="YouTube link" />
             </label>
         </div>
@@ -444,7 +472,10 @@ function SermonFormDialog({
     onSharedStatusChange: (status: SermonStatus) => void
     onSubmit: () => Promise<void>
 }) {
-    const canSubmit = Boolean(languageForms.en.title.trim() && languageForms.en.youtubeUrl.trim())
+    const base = resolveBase(languageForms, editing ? (editing.language ?? 'en') : undefined)
+    const canSubmit = Boolean(
+        base && languageForms[base].title.trim() && languageForms[base].youtubeUrl.trim(),
+    )
 
     return (
         <Dialog open={open} onOpenChange={onOpenChange}>
@@ -452,12 +483,11 @@ function SermonFormDialog({
                 <DialogHeader>
                     <DialogTitle>{editing ? 'Edit sermon' : 'Add sermon'}</DialogTitle>
                     <DialogDescription>
-                        Switch tabs to manage each language. English title and YouTube link are always required; Spanish and Portuguese
-                        are optional and fall back to the English content when fields are empty.
+                        Fill any language tab — the first filled tab becomes the sermon. Empty tabs are ignored.
                     </DialogDescription>
                 </DialogHeader>
                 <div className="space-y-4">
-                    <label className="grid gap-1.5 text-sm font-medium sm:max-w-xs">
+                    <label className="grid max-w-xs gap-1.5 text-sm font-medium">
                         Status
                         <Select value={sharedStatus} onValueChange={(value) => onSharedStatusChange(value as SermonStatus)}>
                             <SelectTrigger aria-label="Status"><SelectValue /></SelectTrigger>
@@ -474,7 +504,7 @@ function SermonFormDialog({
                             {CONTENT_LANGUAGES.map((language) => (
                                 <TabsTrigger key={language.value} value={language.value}>
                                     {language.label}
-                                    {language.value !== 'en' && languageForms[language.value].title.trim() && (
+                                    {languageForms[language.value].title.trim() && (
                                         <span className="ml-1.5 inline-block size-1.5 rounded-full bg-primary" aria-hidden />
                                     )}
                                 </TabsTrigger>
@@ -485,7 +515,6 @@ function SermonFormDialog({
                                 <LanguageFields
                                     values={languageForms[language.value]}
                                     disabled={saving}
-                                    isEnglish={language.value === 'en'}
                                     onChange={(nextForm) => onLanguageFormChange(language.value, nextForm)}
                                 />
                             </TabsContent>
@@ -505,15 +534,17 @@ function SermonFormDialog({
     )
 }
 
-/** Content of one language inside the view dialog (falls back to English fields). */
+/** Content of one language inside the view dialog (falls back to the original fields). */
 function ViewLanguageContent({ sermon, language }: { sermon: Sermon; language: SermonLanguage }) {
+    const base = sermon.language ?? 'en'
+    const baseLabel = CONTENT_LANGUAGES.find((l) => l.value === base)?.label ?? base
     const translation = sermon.translations.find((t) => t.language === language)
-    const exists = language === 'en' || Boolean(translation)
+    const exists = language === base || Boolean(translation)
 
-    const title = language === 'en' ? sermon.title : (translation?.title ?? sermon.title)
-    const overview = language === 'en' ? sermon.overview : (translation?.overview ?? sermon.overview)
-    const thumbnailUrl = language === 'en' ? sermon.thumbnailUrl : (translation?.thumbnailUrl ?? sermon.thumbnailUrl)
-    const youtubeUrl = language === 'en' ? sermon.youtubeUrl : (translation?.youtubeUrl ?? sermon.youtubeUrl)
+    const title = language === base ? sermon.title : (translation?.title ?? sermon.title)
+    const overview = language === base ? sermon.overview : (translation?.overview ?? sermon.overview)
+    const thumbnailUrl = language === base ? sermon.thumbnailUrl : (translation?.thumbnailUrl ?? sermon.thumbnailUrl)
+    const youtubeUrl = language === base ? sermon.youtubeUrl : (translation?.youtubeUrl ?? sermon.youtubeUrl)
     const topics = translation?.topics ?? sermon.topics
 
     return (
@@ -521,7 +552,7 @@ function ViewLanguageContent({ sermon, language }: { sermon: Sermon; language: S
             {!exists && (
                 <p className="flex items-center gap-2 rounded-lg bg-muted/60 px-3 py-2 text-xs text-muted-foreground">
                     <Languages className="size-3.5" />
-                    Not translated yet — showing the English content as fallback.
+                    Not translated yet — showing the {baseLabel} content as fallback.
                 </p>
             )}
             {title && <h4 className="text-base font-semibold text-foreground">{title}</h4>}

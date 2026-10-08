@@ -6,7 +6,9 @@ import { toast } from 'sonner'
 import * as z from 'zod'
 import { SermonsUI } from '@/components/features/sermons/sermons-ui'
 import { createSermon, deleteSermon, listSermons, updateSermon } from '@/api/sermons'
-import type { SermonInput, SermonLanguage, SermonStatus } from '@/api/sermons'
+import type { SermonInput, SermonStatus } from '@/api/sermons'
+import type { FilterState } from '@/components/shared/filter-builder'
+import { languageFromFilters } from '@/lib/language'
 
 const searchSchema = z.object({
     page: z.number().catch(1).optional(),
@@ -25,12 +27,13 @@ function SermonsPage() {
     const mergeSearch = useSearchParams()
     const queryClient = useQueryClient()
 
-    // Active content language — the server projects it onto every row
-    // (single shared Language enum: en|esp|por).
-    const [language, setLanguage] = useState<SermonLanguage>('en')
+    // Language comes from the shared Add Filter component — the `language`
+    // select drives `?language=`; unset lists everything in its own language.
+    const [filters, setFilters] = useState<FilterState[]>([])
+    const language = languageFromFilters(filters)
 
     const { data, isLoading } = useQuery({
-        queryKey: ['sermons', page, limit, status, language],
+        queryKey: ['sermons', page, limit, status, language ?? 'all'],
         queryFn: () => listSermons({ page, limit, status, language }),
     })
 
@@ -88,8 +91,8 @@ function SermonsPage() {
             limit={limit}
             searchQuery={searchQuery}
             status={status as SermonStatus | 'ALL'}
-            language={language}
-            onLanguageChange={setLanguage}
+            filters={filters}
+            onFiltersChange={setFilters}
             onSearchChange={(value) => mergeSearch({ search: value || undefined, page: 1 })}
             onResetSearch={() => mergeSearch({ search: undefined, page: 1 })}
             onStatusChange={(value) => mergeSearch({ status: value === 'ALL' ? undefined : value, page: 1 })}
