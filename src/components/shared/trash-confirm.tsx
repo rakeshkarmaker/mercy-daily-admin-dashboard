@@ -22,6 +22,8 @@ type TrashConfirmProps = {
     description?: string
     /** Called when the user confirms the action */
     onConfirm: () => void
+    /** Reversibility note after the item name (default warns it cannot be undone). */
+    reversibilityNote?: string
     open?: boolean
     onOpenChange?: (open: boolean) => void
 }
@@ -34,6 +36,7 @@ export function TrashConfirm({
     onConfirm,
     open,
     onOpenChange,
+    reversibilityNote = 'This action cannot be undone.',
 }: TrashConfirmProps) {
     return (
         <AlertDialog open={open} onOpenChange={onOpenChange}>
@@ -42,7 +45,7 @@ export function TrashConfirm({
                 <AlertDialogHeader>
                     <AlertDialogTitle>{title}</AlertDialogTitle>
                     <AlertDialogDescription>
-                        {description} <strong className="text-foreground">{name}</strong>? This action cannot be undone.
+                        {description} <strong className="text-foreground">{name}</strong>? {reversibilityNote}
                     </AlertDialogDescription>
                 </AlertDialogHeader>
                 <AlertDialogFooter>

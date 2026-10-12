@@ -7,7 +7,6 @@ import {
     createAdminPrayer,
     updateAdminPrayer,
     deleteAdminPrayer,
-    prayForPrayer,
 } from '@/api/prayers'
 import type {
     AdminCreatePrayerInput,
@@ -86,15 +85,6 @@ function PrayersPage() {
         onError: (error: Error) => toast.error(error.message),
     })
 
-    const prayMutation = useMutation({
-        mutationFn: (id: string) => prayForPrayer(id),
-        onSuccess: () => {
-            toast.success('Prayer counted!')
-            invalidate()
-        },
-        onError: (error: Error) => toast.error(error.message),
-    })
-
     return (
         <PrayersUI
             prayers={prayers}
@@ -110,7 +100,6 @@ function PrayersPage() {
             onCreatePrayer={(input) => createMutation.mutateAsync(input).then(() => {})}
             onUpdatePrayer={(id, input) => updateMutation.mutateAsync({ id, input }).then(() => {})}
             onDeletePrayer={(id, hard) => deleteMutation.mutateAsync({ id, hard }).then(() => {})}
-            onPrayForPrayer={(id) => prayMutation.mutateAsync(id).then(() => {})}
         />
     )
 }

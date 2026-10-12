@@ -236,7 +236,8 @@ const playlistLanguageForms = (playlist: WorshipPlaylist): LanguageForms => {
     return forms
 }
 
-type PlaylistFormState = PlaylistInput & { coverUrl: string; description: string; isFeatured: boolean }
+/** Shared (non-translatable) playlist fields — title/description live in the language tabs. */
+type PlaylistFormState = { coverUrl: string; isFeatured: boolean }
 
 /** True when the row actually carries content in that language. */
 function hasSongLanguage(song: WorshipSong, language: ContentLanguage): boolean {
@@ -408,8 +409,6 @@ export function WorshipMusicUI({
     const [playlistFormOpen, setPlaylistFormOpen] = useState(false)
     const [editingPlaylist, setEditingPlaylist] = useState<WorshipPlaylist | null>(null)
     const [playlistForm, setPlaylistForm] = useState<PlaylistFormState>({
-        title: '',
-        description: '',
         coverUrl: '',
         isFeatured: true,
     })
@@ -428,6 +427,7 @@ export function WorshipMusicUI({
         const playlistTitleById = new Map(playlists.map((p) => [p.id, p.title]))
         if (!searchQuery.trim()) return songs
         const q = searchQuery.toLowerCase()
+        // Search spans the base fields and every stored translation.
         return songs.filter((s) =>
             [
                 s.title,
@@ -435,6 +435,7 @@ export function WorshipMusicUI({
                 s.bibleReference ?? '',
                 s.description ?? '',
                 s.playlist?.title ?? playlistTitleById.get(s.playlist?.id ?? '') ?? '',
+                ...s.translations.flatMap((t) => [t.title, t.bibleReference ?? '', t.description ?? '']),
             ].some((value) => value.toLowerCase().includes(q)),
         )
     }, [songs, playlists, searchQuery])
@@ -732,8 +733,6 @@ export function WorshipMusicUI({
     const openCreatePlaylist = () => {
         setEditingPlaylist(null)
         setPlaylistForm({
-            title: '',
-            description: '',
             coverUrl: '',
             isFeatured: true,
         })
@@ -851,8 +850,6 @@ export function WorshipMusicUI({
                                                     const base = storedPlaylistBase(pl)
                                                     setEditingPlaylist(pl)
                                                     setPlaylistForm({
-                                                        title: pl.title,
-                                                        description: pl.description ?? '',
                                                         coverUrl: pl.coverUrl ?? '',
                                                         isFeatured: pl.isFeatured,
                                                     })

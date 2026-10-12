@@ -54,7 +54,6 @@ export interface PrayersUIProps {
     onCreatePrayer: (input: AdminCreatePrayerInput) => Promise<void>
     onUpdatePrayer: (id: string, input: AdminUpdatePrayerInput) => Promise<void>
     onDeletePrayer: (id: string, hard?: boolean) => Promise<void>
-    onPrayForPrayer: (id: string) => Promise<void>
 }
 
 type FormState = {
@@ -114,7 +113,6 @@ export function PrayersUI({
     onCreatePrayer,
     onUpdatePrayer,
     onDeletePrayer,
-    onPrayForPrayer,
 }: PrayersUIProps) {
     const [formOpen, setFormOpen] = useState(false)
     const [editing, setEditing] = useState<PrayerItem | null>(null)
@@ -339,13 +337,6 @@ export function PrayersUI({
                         >
                             <CheckCircle2 className="size-4" />
                         </ActionButton>
-                        <ActionButton
-                            label="Pray (+1)"
-                            onClick={() => onPrayForPrayer(row.id)}
-                            className="text-primary hover:bg-primary/10"
-                        >
-                            <HandHeart className="size-4" />
-                        </ActionButton>
                         {row.deletedAt ? (
                             <ActionButton
                                 label="Restore prayer"
@@ -367,7 +358,7 @@ export function PrayersUI({
                 ),
             },
         ],
-        [onPrayForPrayer],
+        [],
     )
 
     return (
@@ -560,15 +551,6 @@ export function PrayersUI({
                                         )}
                                     </div>
 
-                                    <Button
-                                        size="sm"
-                                        variant="outline"
-                                        onClick={() => onPrayForPrayer(viewing.id)}
-                                        className="gap-1.5"
-                                    >
-                                        <HandHeart className="size-3.5 text-primary" />
-                                        Pray (+1)
-                                    </Button>
                                 </div>
                             </div>
 

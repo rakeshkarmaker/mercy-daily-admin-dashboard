@@ -2,7 +2,8 @@ import { createFileRoute } from '@tanstack/react-router'
 import { useQuery, useQueryClient } from '@tanstack/react-query'
 import { useSearchParams } from '@/hooks/use-search-params'
 import { ReportsUI } from '@/components/features/reports/reports-ui'
-import { listReports, toUiReport, updateReportStatus } from '@/api/reports'
+import { listReports, toUiReport, updateReportStatus, removeContentAndResolve } from '@/api/reports'
+import { toast } from 'sonner'
 import type { FilterState } from '@/components/shared/filter-builder'
 import type { ReportStatus } from '@/api/reports'
 import { useMemo, useState } from 'react'
@@ -20,31 +21,41 @@ export const Route = createFileRoute('/__main/reports')({
     component: ReportsPage,
 })
 
+/** Status comes from the shared Add Filter component; unset means all statuses. */
+function statusFromFilters(filters: FilterState[]): ReportStatus | undefined {
+    const match = filters.find((f) => f.fieldId === 'status')
+    if (!match || Array.isArray(match.value)) return undefined
+    const value = match.value.trim().toUpperCase()
+    return value === 'PENDING' || value === 'REVIEWED' || value === 'RESOLVED' || value === 'DISMISSED'
+        ? value
+        : undefined
+}
+
 function ReportsPage() {
     const { page = 1, limit = 10, search: searchQuery = '' } = Route.useSearch()
     const mergeSearch = useSearchParams()
     const queryClient = useQueryClient()
     const [filters, setFilters] = useState<FilterState[]>([])
+    // Status + text search run server-side so every page is covered (the
+    // previous client-only filtering silently missed rows past page one).
+    // The date filter below stays client-side on the loaded page.
+    const status = statusFromFilters(filters)
+    const search = searchQuery.trim() || undefined
 
     const { data: list = { data: [], total: 0 }, isLoading } = useQuery({
-        queryKey: ['reports', page, limit],
-        queryFn: () => listReports({ page, limit }),
+        queryKey: ['reports', page, limit, status ?? 'all', search ?? ''],
+        queryFn: () => listReports({ page, limit, status, search }),
     })
 
     const reports = useMemo(() => list.data.map(toUiReport), [list.data])
 
-    // Status filter is applied server-side via query param when a single
-    // status filter is chosen; client-side filtering covers text/dates.
+    // Reason + date filtering covers the loaded page; status/search already
+    // ran server-side (re-applied here harmlessly for reason text).
     const filtered = useMemo(() => {
         let result = reports
-        if (searchQuery.trim()) {
-            const q = searchQuery.toLowerCase()
-            result = result.filter(
-                (r) =>
-                    r.targetSnippet.toLowerCase().includes(q) ||
-                    r.reporterName.toLowerCase().includes(q) ||
-                    r.reason.toLowerCase().includes(q),
-            )
+        if (search) {
+            const q = search.toLowerCase()
+            result = result.filter((r) => r.reason.toLowerCase().includes(q))
         }
         if (filters.length > 0) {
             result = result.filter((r) => {
@@ -74,6 +85,16 @@ function ReportsPage() {
         queryClient.invalidateQueries({ queryKey: ['reports'] })
     }
 
+    const handleRemoveContent = async (report: { id: string; targetType: 'POST' | 'COMMENT'; targetId: string }) => {
+        try {
+            await removeContentAndResolve(report.id, report.targetType, report.targetId)
+            toast.success('Content removed and report resolved')
+        } catch (error) {
+            toast.error(error instanceof Error ? error.message : 'Removal failed')
+        }
+        queryClient.invalidateQueries({ queryKey: ['reports'] })
+    }
+
     const handleSearchChange = (value: string) => {
         mergeSearch({ search: value || undefined, page: 1 })
     }
@@ -99,6 +120,7 @@ function ReportsPage() {
             }}
             onResetSearch={handleResetSearch}
             onStatusChange={handleStatusChange}
+            onRemoveContent={handleRemoveContent}
         />
     )
 }

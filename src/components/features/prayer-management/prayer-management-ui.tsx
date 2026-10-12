@@ -406,20 +406,51 @@ export function PrayerManagementUI({
 
     const openEdit = (prayer: Prayer) => {
         const base = storedBaseLanguage(prayer)
+        const projected = prayer.language ?? base
+        const translations = prayer.translations ?? []
+        // Unproject rows that arrived projected (filtered library / preview
+        // days): the stored base content sits in the baseLanguage entry
+        // while the projected content sits in the top-level fields.
+        // Without this, the projected text lands in the base tab and saving
+        // overwrites the base language (Portuguese overwriting English).
+        const baseEntry = projected === base ? undefined : translations.find((t) => t.language === base)
         setEditing(prayer)
         setActiveLanguage(base)
-        setForm({
-            verse: prayer.verse,
-            reference: prayer.reference,
-            reflection: prayer.reflection,
-            prayer: prayer.prayer,
-            practice: prayer.practice ?? '',
-        })
+        setForm(
+            baseEntry
+                ? {
+                    verse: baseEntry.verse,
+                    reference: baseEntry.reference,
+                    reflection: baseEntry.reflection,
+                    prayer: baseEntry.prayer,
+                    practice: baseEntry.practice ?? '',
+                }
+                : {
+                    verse: prayer.verse,
+                    reference: prayer.reference,
+                    reflection: prayer.reflection,
+                    prayer: prayer.prayer,
+                    practice: prayer.practice ?? '',
+                },
+        )
         // Preload saved translations into the language tabs (the base tab
         // edits the base row). Rows from the list/detail endpoints already
         // carry `translations`, so this is synchronous — no wipe race, no stale
-        // tabs leaking in from a previous edit.
-        setLanguageForms(toLanguageForms(prayer.translations, base))
+        // tabs leaking in from a previous edit. A projected row's top-level
+        // fields belong to the projected tab, not the base one.
+        setLanguageForms((() => {
+            const forms = toLanguageForms(translations, base)
+            if (projected !== base) {
+                forms[projected] = {
+                    verse: prayer.verse,
+                    reference: prayer.reference,
+                    reflection: prayer.reflection,
+                    prayer: prayer.prayer,
+                    practice: prayer.practice ?? '',
+                }
+            }
+            return forms
+        })())
         setFormOpen(true)
         // Fallback for rows without embedded translations (defensive).
         if (!prayer.translations && onFetchTranslations) {
@@ -451,15 +482,22 @@ export function PrayerManagementUI({
             if (match) {
                 openEdit(match)
             } else {
+                // Prefill a CREATE form: the create path reads languageForms
+                // (never `form`), so seed the tab state — seeding `form`
+                // alone would show stale/empty tabs and save the wrong content.
                 const base = todayPrayer.baseLanguage ?? todayPrayer.language ?? 'en'
                 setEditing(null)
                 setActiveLanguage(base)
-                setForm({
-                    verse: todayPrayer.verse,
-                    reference: todayPrayer.reference,
-                    reflection: todayPrayer.reflection,
-                    prayer: todayPrayer.prayer,
-                    practice: todayPrayer.practice ?? '',
+                setForm(emptyForm)
+                setLanguageForms({
+                    ...createEmptyLanguageForms(),
+                    [base]: {
+                        verse: todayPrayer.verse,
+                        reference: todayPrayer.reference,
+                        reflection: todayPrayer.reflection,
+                        prayer: todayPrayer.prayer,
+                        practice: todayPrayer.practice ?? '',
+                    },
                 })
                 setFormOpen(true)
             }
@@ -700,7 +738,10 @@ export function PrayerManagementUI({
                     description="Manage today's active devotion, daily prayer library, and scheduled overrides."
                 />
                 <div className="flex flex-wrap items-center gap-3">
-                    <FilterBuilder options={filterOptions} filters={filters} onFiltersChange={onFiltersChange} />
+                    {/* Filters only shape the prayer library — today & schedules have nothing to filter. */}
+                    {activeTab === 'library' && (
+                        <FilterBuilder options={filterOptions} filters={filters} onFiltersChange={onFiltersChange} />
+                    )}
                     <SearchInput
                         value={searchQuery}
                         onValueChange={onSearchChange}
@@ -1099,7 +1140,7 @@ function PrayerFormDialog({
 }) {
     // First filled tab wins — no picker needed. Edit: the stored base tab
     // edits the base row, the other tabs edit the translation forms.
-    const storedBase = editing ? (editing.language ?? 'en') : undefined
+    const storedBase = editing ? storedBaseLanguage(editing) : undefined
     const isBaseTab = editing ? activeLanguage === storedBase : true
     const activeForm = editing && isBaseTab ? form : languageForms[activeLanguage]
     const updateField = (field: keyof FormState, value: string) => {

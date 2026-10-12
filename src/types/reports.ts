@@ -25,6 +25,8 @@ export type ApiReport = {
 export type Report = {
     id: string
     targetType: ReportTargetType
+    /** Id of the reported post/comment — needed for content actions (remove/keep). */
+    targetId: string
     reason: ReportReason
     status: ReportStatus
     details: string | null

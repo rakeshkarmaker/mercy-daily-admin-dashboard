@@ -75,6 +75,7 @@ function WorshipMusicPage() {
         const rows = data?.data ?? []
         const query = searchQuery.trim().toLowerCase()
         if (!query) return rows
+        // Search spans the base fields and every stored translation.
         return rows.filter((song) =>
             [
                 song.title,
@@ -82,6 +83,7 @@ function WorshipMusicPage() {
                 song.bibleReference ?? '',
                 song.description ?? '',
                 song.playlist?.title ?? '',
+                ...song.translations.flatMap((t) => [t.title, t.bibleReference ?? '', t.description ?? '']),
             ].some((value) => value.toLowerCase().includes(query)),
         )
     }, [data?.data, searchQuery])
