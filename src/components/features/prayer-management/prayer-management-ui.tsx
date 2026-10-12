@@ -102,6 +102,15 @@ function isFormEmpty(form: FormState): boolean {
 
 const ORDERED_LANGUAGES = ['en', 'esp', 'por'] as const
 
+/**
+ * Stored original language of the row. Never use `prayer.language` here —
+ * it follows `?language=` projection, so a filtered list would flip the
+ * base on save (Portuguese overwriting English). `baseLanguage` is immune.
+ */
+function storedBaseLanguage(prayer: Prayer): ContentLanguage {
+    return prayer.baseLanguage ?? prayer.language ?? 'en'
+}
+
 /** First filled tab wins — no picker needed. Empty tabs are ignored. */
 function resolveBase(
     forms: Record<ContentLanguage, FormState>,
@@ -396,7 +405,7 @@ export function PrayerManagementUI({
     }
 
     const openEdit = (prayer: Prayer) => {
-        const base = prayer.language ?? 'en'
+        const base = storedBaseLanguage(prayer)
         setEditing(prayer)
         setActiveLanguage(base)
         setForm({
@@ -432,6 +441,7 @@ export function PrayerManagementUI({
                 practice: todayPrayer.practice ?? '',
                 viewsCount: todayPrayer.viewsCount ?? 0,
                 language: todayPrayer.language ?? 'en',
+                baseLanguage: todayPrayer.baseLanguage ?? todayPrayer.language ?? 'en',
                 translations: todayPrayer.translations ?? [],
                 createdAt: todayPrayer.createdAt ?? new Date().toISOString(),
                 updatedAt: todayPrayer.updatedAt ?? new Date().toISOString(),
@@ -441,7 +451,7 @@ export function PrayerManagementUI({
             if (match) {
                 openEdit(match)
             } else {
-                const base = todayPrayer.language ?? 'en'
+                const base = todayPrayer.baseLanguage ?? todayPrayer.language ?? 'en'
                 setEditing(null)
                 setActiveLanguage(base)
                 setForm({
@@ -471,7 +481,7 @@ export function PrayerManagementUI({
         // First filled tab wins — no picker needed. Empty tabs are ignored
         // on create and clear that translation on edit.
         if (editing) {
-            const storedBase = editing.language ?? 'en'
+            const storedBase = storedBaseLanguage(editing)
             // If the base tab was emptied but another tab is filled, the base
             // shifts to that tab (backend folds the old translation away).
             const shifted = isFormEmpty(form) ? resolveBase(languageForms, undefined) : undefined

@@ -32,6 +32,8 @@ export type Sermon = {
     topics: SermonTopic[]
     /** Language of the top-level title/overview/video in this response. */
     language: SermonLanguage
+    /** Stored original language of the base columns — immune to ?language= projection. Edit forms must use this as the base. Optional for rollout tolerance with cached responses. */
+    baseLanguage?: SermonLanguage
     /** Every other language's content, always present. */
     translations: SermonTranslation[]
     likesCount: number

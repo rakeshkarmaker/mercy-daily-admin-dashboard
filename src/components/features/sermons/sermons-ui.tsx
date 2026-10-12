@@ -65,6 +65,15 @@ const createEmptyLanguageForms = (): LanguageForms => ({
 const ORDERED_LANGUAGES = ['en', 'esp', 'por'] as const
 
 /**
+ * Stored original language of the row. Never use `sermon.language` here —
+ * it follows `?language=` projection, so a filtered list would flip the
+ * base on save (Portuguese overwriting English). `baseLanguage` is immune.
+ */
+function storedBaseLanguage(sermon: Sermon): SermonLanguage {
+    return sermon.baseLanguage ?? sermon.language ?? 'en'
+}
+
+/**
  * Which tab holds the top-level fields: the stored base language while it
  * still has a title, otherwise the first filled tab. No picker needed —
  * filling any language just works.
@@ -80,7 +89,7 @@ function resolveBase(forms: LanguageForms, storedBase?: SermonLanguage): SermonL
  */
 const languageFormsFromSermon = (sermon: Sermon): LanguageForms => {
     const forms = createEmptyLanguageForms()
-    const base = sermon.language ?? 'en'
+    const base = storedBaseLanguage(sermon)
     forms[base] = {
         title: sermon.title,
         overview: sermon.overview ?? '',
@@ -156,14 +165,14 @@ export function SermonsUI({
         setEditing(sermon)
         setLanguageForms(languageFormsFromSermon(sermon))
         setSharedStatus(sermon.status)
-        setActiveLanguage(sermon.language ?? 'en')
+        setActiveLanguage(storedBaseLanguage(sermon))
         setFormOpen(true)
     }
 
     const submitForm = async () => {
         // First filled tab wins — no picker needed. Empty tabs are ignored
         // on create and remove that translation on edit.
-        const base = resolveBase(languageForms, editing ? (editing.language ?? 'en') : undefined)
+        const base = resolveBase(languageForms, editing ? storedBaseLanguage(editing) : undefined)
         if (!base) return
         const baseForm = languageForms[base]
         if (!baseForm.title.trim() || !baseForm.youtubeUrl.trim()) {
@@ -472,7 +481,7 @@ function SermonFormDialog({
     onSharedStatusChange: (status: SermonStatus) => void
     onSubmit: () => Promise<void>
 }) {
-    const base = resolveBase(languageForms, editing ? (editing.language ?? 'en') : undefined)
+    const base = resolveBase(languageForms, editing ? storedBaseLanguage(editing) : undefined)
     const canSubmit = Boolean(
         base && languageForms[base].title.trim() && languageForms[base].youtubeUrl.trim(),
     )

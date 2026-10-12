@@ -144,10 +144,21 @@ const emptySongForm: SongFormState = {
     isFeatured: false,
 }
 
+/**
+ * Stored original language of the row. Never use `.language` here — it
+ * follows `?language=` projection, so a filtered list would flip the base
+ * on save (Portuguese overwriting English). `baseLanguage` is immune.
+ */
+const storedSongBase = (song: WorshipSong): ContentLanguage =>
+    song.baseLanguage ?? song.language ?? 'en'
+
+const storedPlaylistBase = (playlist: WorshipPlaylist): ContentLanguage =>
+    playlist.baseLanguage ?? playlist.language ?? 'en'
+
 /** Language blocks from an existing song (top-level fields = its own language). */
 const songLanguageForms = (song: WorshipSong): LanguageForms => {
     const forms = createEmptyLanguageForms()
-    const base = song.language ?? 'en'
+    const base = storedSongBase(song)
     forms[base] = {
         title: song.title,
         description: song.description ?? '',
@@ -208,7 +219,7 @@ function secondsToMinutes(totalSeconds: number): string {
 /** Language blocks for a playlist (top-level fields = its own language). */
 const playlistLanguageForms = (playlist: WorshipPlaylist): LanguageForms => {
     const forms = createEmptyLanguageForms()
-    const base = playlist.language ?? 'en'
+    const base = storedPlaylistBase(playlist)
     forms[base] = {
         title: playlist.title,
         description: playlist.description ?? '',
@@ -473,7 +484,7 @@ export function WorshipMusicUI({
     }
 
     const openEditSong = (song: WorshipSong) => {
-        const base = song.language ?? 'en'
+        const base = storedSongBase(song)
         setEditingSong(song)
         setSongForm({
             artist: song.artist,
@@ -490,7 +501,7 @@ export function WorshipMusicUI({
     }
 
     const submitSongForm = async () => {
-        const baseLang = resolveBase(songLangForms, editingSong ? (editingSong.language ?? 'en') : undefined)
+        const baseLang = resolveBase(songLangForms, editingSong ? storedSongBase(editingSong) : undefined)
         if (!baseLang) return
         const base = songLangForms[baseLang]
         if (!base.title.trim() || !songForm.artist.trim()) return
@@ -817,7 +828,7 @@ export function WorshipMusicUI({
                                             <ActionButton
                                                 label="Edit playlist"
                                                 onClick={() => {
-                                                    const base = pl.language ?? 'en'
+                                                    const base = storedPlaylistBase(pl)
                                                     setEditingPlaylist(pl)
                                                     setPlaylistForm({
                                                         title: pl.title,
@@ -977,7 +988,7 @@ export function WorshipMusicUI({
                         </Button>
                         <Button
                             onClick={submitSongForm}
-                            disabled={!resolveBase(songLangForms, editingSong ? (editingSong.language ?? 'en') : undefined) || !songForm.artist.trim()}
+                            disabled={!resolveBase(songLangForms, editingSong ? storedSongBase(editingSong) : undefined) || !songForm.artist.trim()}
                             className="bg-primary hover:bg-primary/90 text-primary-foreground"
                         >
                             {editingSong ? 'Save Changes' : 'Add Music Track'}
@@ -1031,7 +1042,7 @@ export function WorshipMusicUI({
                         </Button>
                         <Button
                             onClick={async () => {
-                                const baseLang = resolveBase(playlistLangForms, editingPlaylist ? (editingPlaylist.language ?? 'en') : undefined)
+                                const baseLang = resolveBase(playlistLangForms, editingPlaylist ? storedPlaylistBase(editingPlaylist) : undefined)
                                 if (!baseLang) return
                                 const base = playlistLangForms[baseLang]
                                 const input: PlaylistInput = {
@@ -1048,7 +1059,7 @@ export function WorshipMusicUI({
                                 else await onCreatePlaylist(input)
                                 setPlaylistFormOpen(false)
                             }}
-                            disabled={!resolveBase(playlistLangForms, editingPlaylist ? (editingPlaylist.language ?? 'en') : undefined)}
+                            disabled={!resolveBase(playlistLangForms, editingPlaylist ? storedPlaylistBase(editingPlaylist) : undefined)}
                             className="bg-primary hover:bg-primary/90 text-primary-foreground"
                         >
                             Save Playlist

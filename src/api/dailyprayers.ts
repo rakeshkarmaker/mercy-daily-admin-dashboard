@@ -13,6 +13,8 @@ export type Prayer = {
     practice: string | null
     viewsCount: number
     language: PrayerLanguage
+    /** Stored original language of the base columns — immune to ?language= projection. Edit forms must use this as the base. Optional for rollout tolerance with cached responses. */
+    baseLanguage?: PrayerLanguage
     translations: PrayerTranslation[]
     createdAt: string
     updatedAt: string
@@ -131,6 +133,7 @@ export type TodayPrayer = {
     practice?: string | null
     viewsCount?: number
     language?: PrayerLanguage
+    baseLanguage?: PrayerLanguage
     translations?: PrayerTranslation[]
     createdAt?: string
     updatedAt?: string

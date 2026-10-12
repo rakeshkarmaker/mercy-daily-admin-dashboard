@@ -36,6 +36,8 @@ export type WorshipSong = {
     playlist: WorshipSongPlaylist | null
     /** Language of the top-level title/description/verse in this response. */
     language: WorshipLanguage
+    /** Stored original language of the base columns — immune to ?language= projection. Edit forms must use this as the base. Optional for rollout tolerance with cached responses. */
+    baseLanguage?: WorshipLanguage
     /** Every other language's content (non-base projections lead with the base content). */
     translations: WorshipSongTranslation[]
     createdAt: string
@@ -59,6 +61,8 @@ export type WorshipPlaylist = {
     songCount: number
     /** Language of the top-level title/description in this response. */
     language: WorshipLanguage
+    /** Stored original language of the base columns — immune to ?language= projection. Edit forms must use this as the base. Optional for rollout tolerance with cached responses. */
+    baseLanguage?: WorshipLanguage
     /** Every other language's content (non-base projections lead with the base content). */
     translations: WorshipPlaylistTranslation[]
     createdAt: string
