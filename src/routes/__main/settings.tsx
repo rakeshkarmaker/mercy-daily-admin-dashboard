@@ -31,15 +31,20 @@ const TABS = [
 
 type TabId = (typeof TABS)[number]['id']
 
-const emptyToUndefined = (v: unknown) => (v === '' ? undefined : v)
-const optionalHttps = z.preprocess(
-    emptyToUndefined,
-    z.string().regex(/^https:\/\/\S+$/, 'Must be an absolute https URL').optional(),
-)
+// NOTE: these stay string-in/string-out (no z.preprocess) so the schema
+// type matches the form's all-string defaultValues — preprocess would widen
+// the schema input to `unknown` and break the TanStack Form validator type.
+// Empty strings pass validation; onSubmit maps them to null server-side.
+const optionalEmail = z
+    .string()
+    .refine((v) => v === '' || /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(v), 'Enter a valid email address')
+const optionalHttps = z
+    .string()
+    .refine((v) => v === '' || /^https:\/\/\S+$/.test(v), 'Must be an absolute https URL')
 
 const generalSchema = z.object({
     logoUrl: z.string(),
-    supportEmail: z.preprocess(emptyToUndefined, z.email('Enter a valid email address').optional()),
+    supportEmail: optionalEmail,
     supportPhone: z.string(),
     websiteUrl: optionalHttps,
     companyName: z.string(),

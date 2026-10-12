@@ -89,11 +89,13 @@ export interface WorshipMusicUIProps {
     onDeletePlaylist: (id: string) => Promise<void>
 }
 
-/** Per-language content: the fields a translator actually rewrites. */
+/** Per-language content: the fields a translator actually rewrites (audio included — each language has its own recording). */
 type LanguageFormState = {
     title: string
     description: string
     bibleReference: string
+    /** Songs only — each language has its own recording. Playlists omit it. */
+    audioUrl?: string
 }
 
 type LanguageForms = Record<ContentLanguage, LanguageFormState>
@@ -102,6 +104,7 @@ const emptyLanguageForm = (): LanguageFormState => ({
     title: '',
     description: '',
     bibleReference: '',
+    audioUrl: '',
 })
 
 /**
@@ -127,7 +130,6 @@ type SongFormState = {
     artist: string
     /** Duration in decimal minutes (e.g. 4.5). Sent as whole seconds. */
     durationMinutes: string
-    audioUrl: string
     coverUrl: string
     playlistId: string
     status: WorshipSongStatus
@@ -137,7 +139,6 @@ type SongFormState = {
 const emptySongForm: SongFormState = {
     artist: 'Mercy Daily Worship',
     durationMinutes: '',
-    audioUrl: '',
     coverUrl: '',
     playlistId: '',
     status: 'PUBLISHED',
@@ -163,6 +164,7 @@ const songLanguageForms = (song: WorshipSong): LanguageForms => {
         title: song.title,
         description: song.description ?? '',
         bibleReference: song.bibleReference ?? '',
+        audioUrl: song.audioUrl ?? '',
     }
     for (const t of song.translations) {
         if (t.language === base) continue
@@ -170,6 +172,7 @@ const songLanguageForms = (song: WorshipSong): LanguageForms => {
             title: t.title,
             description: t.description ?? '',
             bibleReference: t.bibleReference ?? '',
+            audioUrl: t.audioUrl ?? '',
         }
     }
     return forms
@@ -195,6 +198,7 @@ function toSongTranslations(
                 title: form.title.trim(),
                 description: form.description.trim() || null,
                 bibleReference: form.bibleReference.trim() || null,
+                audioUrl: form.audioUrl?.trim() || null,
             })
         } else if (editing) {
             items.push({ language })
@@ -287,6 +291,7 @@ function LanguageTabs({
     forms,
     field2Label = 'Bible Reference',
     field3Label = 'Description',
+    showAudioField = false,
     onChange,
     onFormChange,
 }: {
@@ -294,6 +299,8 @@ function LanguageTabs({
     forms: LanguageForms
     field2Label?: string | null
     field3Label?: string
+    /** Songs carry their own recording per language; playlists have none. */
+    showAudioField?: boolean
     onChange: (language: ContentLanguage) => void
     onFormChange: (language: ContentLanguage, form: LanguageFormState) => void
 }) {
@@ -346,6 +353,20 @@ function LanguageTabs({
                                     aria-label={`${field3Label} (${language.label})`}
                                 />
                             </div>
+                            {showAudioField && (
+                                <div className="grid gap-1.5">
+                                    <Label className="text-xs font-medium">Audio file (.mp3)</Label>
+                                    <Input
+                                        value={form.audioUrl ?? ''}
+                                        onChange={(e) => set('audioUrl', e.target.value)}
+                                        placeholder="https://example.com/audio.mp3"
+                                        aria-label={`Audio file (${language.label})`}
+                                    />
+                                    <p className="text-[11px] text-muted-foreground">
+                                        Each language has its own recording — empty falls back to the track&apos;s base audio.
+                                    </p>
+                                </div>
+                            )}
                         </div>
                     </TabsContent>
                 )
@@ -489,7 +510,6 @@ export function WorshipMusicUI({
         setSongForm({
             artist: song.artist,
             durationMinutes: secondsToMinutes(song.durationSeconds),
-            audioUrl: song.audioUrl ?? '',
             coverUrl: song.coverUrl ?? '',
             playlistId: song.playlist?.id ?? '',
             status: song.status,
@@ -511,7 +531,7 @@ export function WorshipMusicUI({
             title: base.title.trim(),
             artist: songForm.artist.trim() || undefined,
             durationSeconds: minutesToSeconds(songForm.durationMinutes),
-            audioUrl: songForm.audioUrl.trim() || null,
+            audioUrl: base.audioUrl?.trim() || null,
             coverUrl: songForm.coverUrl.trim() || null,
             description: base.description.trim() || null,
             bibleReference: base.bibleReference.trim() || null,
@@ -875,6 +895,7 @@ export function WorshipMusicUI({
                             <LanguageTabs
                                 value={songLang}
                                 forms={songLangForms}
+                                showAudioField
                                 onChange={setSongLang}
                                 onFormChange={(lang, form) =>
                                     setSongLangForms({ ...songLangForms, [lang]: form })
@@ -933,20 +954,11 @@ export function WorshipMusicUI({
                             />
                         </div>
 
-                        {/* Audio & Publishing */}
+                        {/* Publishing */}
                         <div className="space-y-3">
                             <h4 className="text-xs font-bold uppercase tracking-wider text-muted-foreground flex items-center gap-1.5">
-                                <Volume2 className="size-3.5 text-pink-500" /> Audio & Publishing
+                                <Volume2 className="size-3.5 text-pink-500" /> Publishing
                             </h4>
-                            <div className="grid gap-1.5">
-                                <Label className="text-xs font-medium">Audio Stream URL (.mp3)</Label>
-                                <Input
-                                    value={songForm.audioUrl}
-                                    onChange={(e) => setSongForm({ ...songForm, audioUrl: e.target.value })}
-                                    placeholder="https://example.com/audio.mp3"
-                                />
-                            </div>
-
                             <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
                                 <div className="grid gap-1.5">
                                     <Label className="text-xs font-medium">Publishing Status</Label>

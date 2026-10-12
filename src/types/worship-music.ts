@@ -16,6 +16,8 @@ export type WorshipSongTranslation = {
     title: string
     description: string | null
     bibleReference: string | null
+    /** Per-language audio file (falls back to the track's own audioUrl when null). */
+    audioUrl: string | null
 }
 
 export type WorshipSong = {
