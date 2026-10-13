@@ -5,15 +5,15 @@ import { Separator } from '@/components/ui/separator'
 import { useMutation, useQueryClient, useQuery } from '@tanstack/react-query'
 import { createFileRoute, useNavigate, useRouter } from '@tanstack/react-router'
 import { request } from '@/api/base'
-import { SlidersHorizontal, User, ShieldCheck, ArrowLeft, FileText, FileSignature, Info, Mail, Loader2, X } from 'lucide-react'
+import { SlidersHorizontal, User, ShieldCheck, ArrowLeft, FileText, FileSignature, Info, Mail, Sparkles, Loader2, X } from 'lucide-react'
 import { useState, useEffect, useMemo } from 'react'
 import { toast } from 'sonner'
 import * as z from 'zod'
 import JoditEditor from 'jodit-react'
 import { Dialog, DialogContent, DialogTitle } from '@/components/ui/dialog'
 import { Badge } from '@/components/ui/badge'
-import { appSettingsApi, staticContentApi } from '@/api/settings'
-import type { AppSetting, UpdateAppSetting } from '@/api/settings'
+import { appSettingsApi, staticContentApi, boardingMessageApi } from '@/api/settings'
+import type { AppSetting, UpdateAppSetting, BoardingMessage, UpdateBoardingMessage } from '@/api/settings'
 
 export const Route = createFileRoute('/__main/settings')({
     component: RouteComponent,
@@ -21,6 +21,7 @@ export const Route = createFileRoute('/__main/settings')({
 
 const TABS = [
     { id: 'general', label: 'General', icon: SlidersHorizontal },
+    { id: 'onboarding', label: 'Onboarding', icon: Sparkles },
     { id: 'profile', label: 'Profile', icon: User },
     { id: 'security', label: 'Security', icon: ShieldCheck },
     { id: 'privacy-policy', label: 'Privacy Policy', icon: FileText },
@@ -35,15 +36,10 @@ type TabId = (typeof TABS)[number]['id']
 // type matches the form's all-string defaultValues — preprocess would widen
 // the schema input to `unknown` and break the TanStack Form validator type.
 // Empty strings pass validation; onSubmit maps them to null server-side.
-const optionalEmail = z
-    .string()
-    .refine((v) => v === '' || /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(v), 'Enter a valid email address')
-const optionalHttps = z
-    .string()
-    .refine((v) => v === '' || /^https:\/\/\S+$/.test(v), 'Must be an absolute https URL')
+const optionalEmail = z.string().refine((v) => v === '' || /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(v), 'Enter a valid email address')
+const optionalHttps = z.string().refine((v) => v === '' || /^https:\/\/\S+$/.test(v), 'Must be an absolute https URL')
 
 const generalSchema = z.object({
-    logoUrl: z.string(),
     supportEmail: optionalEmail,
     supportPhone: z.string(),
     websiteUrl: optionalHttps,
@@ -76,6 +72,14 @@ const securitySchema = z
         path: ['confirmPassword'],
     })
 
+// Backend enforces IsNotEmpty + MaxLength(1000/500) on both fields
+// (UpdateBoardingMessageDto). Trims happen on submit so a
+// whitespace-only input fails validation instead of clearing silently.
+const onboardingSchema = z.object({
+    message: z.string().trim().min(1, 'Enter the boarding message').max(1000, 'Message must be 1000 characters or less'),
+    verse: z.string().trim().min(1, 'Enter the verse').max(500, 'Verse must be 500 characters or less'),
+})
+
 // ─── Main Component ─────────────────────────────────────────────────────────────
 
 function RouteComponent() {
@@ -107,19 +111,32 @@ function RouteComponent() {
                 {/* Right Content Area */}
                 <div className="border rounded-xl bg-card p-6 min-h-125">
                     {activeTab === 'general' && <GeneralTab />}
+                    {activeTab === 'onboarding' && <OnboardingTab />}
                     {activeTab === 'profile' && <ProfileTab />}
                     {activeTab === 'security' && <SecurityTab />}
                     {activeTab === 'privacy-policy' && (
-                        <StaticPageTab slug="privacy-policy" title="Privacy Policy" description="Manage the application's privacy policy." />
+                        <StaticPageTab
+                            slug="privacy-policy"
+                            title="Privacy Policy"
+                            description="Manage the application's privacy policy."
+                        />
                     )}
                     {activeTab === 'terms-and-conditions' && (
-                        <StaticPageTab slug="terms-and-conditions" title="Terms & Conditions" description="Manage the application's terms and conditions." />
+                        <StaticPageTab
+                            slug="terms-and-conditions"
+                            title="Terms & Conditions"
+                            description="Manage the application's terms and conditions."
+                        />
                     )}
                     {activeTab === 'about-us' && (
                         <StaticPageTab slug="about-us" title="About Us" description="Manage the application's about us page." />
                     )}
                     {activeTab === 'contact-info' && (
-                        <StaticPageTab slug="contact-info" title="Contact Info" description="Manage the application's contact information page." />
+                        <StaticPageTab
+                            slug="contact-info"
+                            title="Contact Info"
+                            description="Manage the application's contact information page."
+                        />
                     )}
                 </div>
             </div>
@@ -154,13 +171,7 @@ function GeneralTab() {
         )
     }
 
-    return (
-        <GeneralForm
-            key={data?.updatedAt ?? 'initial'}
-            initial={data}
-            onSave={(patch) => saveSettings.mutateAsync(patch)}
-        />
-    )
+    return <GeneralForm key={data?.updatedAt ?? 'initial'} initial={data} onSave={(patch) => saveSettings.mutateAsync(patch)} />
 }
 
 // General tab — everything here is public: the website footer/header and the
@@ -168,7 +179,6 @@ function GeneralTab() {
 function GeneralForm({ initial, onSave }: { initial?: AppSetting; onSave: (data: UpdateAppSetting) => Promise<unknown> }) {
     const form = useAppForm({
         defaultValues: {
-            logoUrl: initial?.logoUrl ?? '',
             supportEmail: initial?.supportEmail ?? '',
             supportPhone: initial?.supportPhone ?? '',
             websiteUrl: initial?.websiteUrl ?? '',
@@ -185,8 +195,10 @@ function GeneralForm({ initial, onSave }: { initial?: AppSetting; onSave: (data:
             // Empty inputs clear the column server-side.
             const nullIfEmpty = (v: string) => (v.trim() === '' ? null : v.trim())
             await onSave({
-                logoUrl: value.logoUrl || null,
-                supportEmail: value.supportEmail ? value.supportEmail.trim().toLowerCase() : null,
+                // Logo is no longer editable here, but the backend PUT uses
+                // full-replace semantics — pass the stored value through so a
+                // General save doesn't silently wipe it.
+                logoUrl: initial?.logoUrl ?? null,                supportEmail: value.supportEmail ? value.supportEmail.trim().toLowerCase() : null,
                 supportPhone: nullIfEmpty(value.supportPhone),
                 websiteUrl: nullIfEmpty(value.websiteUrl),
                 companyName: nullIfEmpty(value.companyName),
@@ -213,12 +225,6 @@ function GeneralForm({ initial, onSave }: { initial?: AppSetting; onSave: (data:
                 <p className="text-sm text-muted-foreground mt-0.5">
                     Brand, contact details, store links and socials. These are public — the website and the mobile app read them live.
                 </p>
-            </div>
-
-            <Separator />
-
-            <div className="grid grid-cols-1 gap-5 max-w-2xl">
-                <form.AppField name="logoUrl">{(field) => <field.FormImage label="App logo" folder="branding" />}</form.AppField>
             </div>
 
             <Separator />
@@ -265,6 +271,103 @@ function GeneralForm({ initial, onSave }: { initial?: AppSetting; onSave: (data:
                     {(field) => <field.FormInput label="YouTube URL" placeholder="https://youtube.com/..." />}
                 </form.AppField>
             </div>
+
+            <div className="mt-2">
+                <form.AppForm>
+                    <Button type="submit" variant="default" disabled={form.state.isSubmitting} className="w-full sm:w-62.5">
+                        Save
+                    </Button>
+                </form.AppForm>
+            </div>
+        </form>
+    )
+}
+
+// ─── Onboarding Tab ───────────────────────────────────────────────────────────
+// Singleton boarding message shown on app start (message + verse).
+// Persists via GET/PUT /settings/boarding-message; GET creates the row on
+// first access so the form always has something to edit.
+
+function OnboardingTab() {
+    const queryClient = useQueryClient()
+    const { data, isLoading } = useQuery({
+        queryKey: ['boarding-message'],
+        queryFn: boardingMessageApi.get,
+    })
+
+    const saveMessage = useMutation({
+        mutationFn: (data: UpdateBoardingMessage) => boardingMessageApi.update(data),
+        onSuccess: () => {
+            toast.success('Onboarding message saved successfully')
+            queryClient.invalidateQueries({ queryKey: ['boarding-message'] })
+        },
+        onError: (error) => toast.error(error.message),
+    })
+
+    if (isLoading) {
+        return (
+            <div className="flex flex-col justify-center items-center h-96 gap-4 text-muted-foreground">
+                <Loader2 className="size-8 animate-spin" />
+                <p>Loading onboarding message...</p>
+            </div>
+        )
+    }
+
+    return <OnboardingForm key={data?.updatedAt ?? 'initial'} initial={data} onSave={(patch) => saveMessage.mutateAsync(patch)} />
+}
+
+function OnboardingForm({ initial, onSave }: { initial?: BoardingMessage; onSave: (data: UpdateBoardingMessage) => Promise<unknown> }) {
+    const form = useAppForm({
+        defaultValues: {
+            message: initial?.message ?? '',
+            verse: initial?.verse ?? '',
+        },
+        validators: { onChange: onboardingSchema },
+        onSubmit: async ({ value }) => {
+            await onSave({
+                message: value.message.trim(),
+                verse: value.verse.trim(),
+            })
+        },
+    })
+
+    return (
+        <form
+            onSubmit={(e) => {
+                e.preventDefault()
+                form.handleSubmit()
+            }}
+            className="flex flex-col gap-5 h-full"
+        >
+            <div>
+                <h3 className="text-xl font-semibold text-foreground">Onboarding</h3>
+                <p className="text-sm text-muted-foreground mt-0.5">
+                    Welcome message shown when the app starts. Both fields are public — the mobile app reads them live.
+                </p>
+            </div>
+
+            <Separator />
+
+            <div className="grid grid-cols-1 gap-5 max-w-2xl">
+                <form.AppField name="message">
+                    {(field) => <field.FormTextarea label="Message" placeholder="Welcome to Mercy Daily — begin each day in grace." />}
+                </form.AppField>
+                <form.AppField name="verse">
+                    {(field) => (
+                        <field.FormInput
+                            label="Verse"
+                            placeholder="“For I know the plans I have for you,” declares the Lord — Jeremiah 29:11"
+                        />
+                    )}
+                </form.AppField>
+            </div>
+
+            {initial?.updatedAt && (
+                <p className="text-xs text-muted-foreground">
+                    Last updated:{' '}
+                    {new Date(initial.updatedAt).toLocaleDateString('en-US', { year: 'numeric', month: 'long', day: 'numeric' })}.
+                </p>
+            )}
 
             <div className="mt-2">
                 <form.AppForm>
@@ -452,7 +555,13 @@ function SecurityTab() {
                     </form.AppField>
 
                     <form.AppField name="newPassword">
-                        {(field) => <field.FormInput type="password" label={'New Password'} placeholder={'Enter a new password (min 8 characters)'} />}
+                        {(field) => (
+                            <field.FormInput
+                                type="password"
+                                label={'New Password'}
+                                placeholder={'Enter a new password (min 8 characters)'}
+                            />
+                        )}
                     </form.AppField>
 
                     <form.AppField name="confirmPassword">
@@ -651,9 +760,7 @@ function StaticPageTab({ slug, title, description }: { slug: string; title: stri
                                 <SlidersHorizontal className="size-5" />
                             </div>
                             <div>
-                                <DialogTitle className="text-lg font-bold tracking-tight text-white">
-                                    {title} Preview
-                                </DialogTitle>
+                                <DialogTitle className="text-lg font-bold tracking-tight text-white">{title} Preview</DialogTitle>
                                 <p className="text-xs text-white/50">Draft Version (Live View)</p>
                             </div>
                         </div>
