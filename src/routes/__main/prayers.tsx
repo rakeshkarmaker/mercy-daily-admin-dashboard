@@ -4,12 +4,10 @@ import { PrayersUI } from '@/components/features/prayers/prayers-ui'
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import {
     listAdminPrayers,
-    createAdminPrayer,
     updateAdminPrayer,
     deleteAdminPrayer,
 } from '@/api/prayers'
 import type {
-    AdminCreatePrayerInput,
     AdminUpdatePrayerInput,
 } from '@/api/prayers'
 import { toast } from 'sonner'
@@ -56,15 +54,6 @@ function PrayersPage() {
 
     const invalidate = () => queryClient.invalidateQueries({ queryKey: ['prayers-admin'] })
 
-    const createMutation = useMutation({
-        mutationFn: (input: AdminCreatePrayerInput) => createAdminPrayer(input),
-        onSuccess: () => {
-            toast.success('Prayer request created')
-            invalidate()
-        },
-        onError: (error: Error) => toast.error(error.message),
-    })
-
     const updateMutation = useMutation({
         mutationFn: ({ id, input }: { id: string; input: AdminUpdatePrayerInput }) =>
             updateAdminPrayer(id, input),
@@ -97,7 +86,6 @@ function PrayersPage() {
             onTabChange={(newTab) => mergeSearch({ tab: newTab === 'all' ? undefined : newTab, page: 1 })}
             onSearchChange={(value) => mergeSearch({ search: value || undefined, page: 1 })}
             onResetSearch={() => mergeSearch({ search: undefined, page: 1 })}
-            onCreatePrayer={(input) => createMutation.mutateAsync(input).then(() => {})}
             onUpdatePrayer={(id, input) => updateMutation.mutateAsync({ id, input }).then(() => {})}
             onDeletePrayer={(id, hard) => deleteMutation.mutateAsync({ id, hard }).then(() => {})}
         />

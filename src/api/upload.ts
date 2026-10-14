@@ -1,6 +1,24 @@
 import { request } from '@/api/base'
 
 /**
+ * Best-effort Cloudinary cleanup for image fields cleared or replaced by a
+ * save (form-level safe delete): every url in `previous` that is deletable
+ * (Cloudinary-hosted) and no longer present in `current` is destroyed.
+ * Failures are swallowed — the referencing field has already been removed
+ * by the save itself, so this only trims storage. Fire-and-forget; callers
+ * must not await it inside their save flow.
+ */
+export function cleanupRemovedImages(previous: (string | null | undefined)[], current: (string | null | undefined)[]): void {
+    const kept = new Set(current.filter(Boolean).map((url) => url!.trim()))
+    for (const url of previous) {
+        const trimmed = url?.trim()
+        if (trimmed && !kept.has(trimmed) && isDeletableImage(trimmed)) {
+            void deleteImage(trimmed).catch(() => undefined)
+        }
+    }
+}
+
+/**
  * True when the url is a Cloudinary-hosted image (the backend upload
  * module returns `https://res.cloudinary.com/...` secure URLs).
  * Only these are deletable through `DELETE /upload/image` — legacy

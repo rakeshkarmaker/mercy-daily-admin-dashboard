@@ -14,15 +14,22 @@ type FormInputProps = {
     autoComplete?: string
     className?: string
     onChange?: React.ChangeEventHandler<HTMLInputElement>
+    /** Renders a red * after the label (visual required mark only). */
+    required?: boolean
 }
 
-export function FormInput({ type = 'text', label, autoComplete = 'off', ...props }: FormInputProps) {
+export function FormInput({ type = 'text', label, autoComplete = 'off', required, ...props }: FormInputProps) {
     const field = useFieldContext<string>()
     const isInvalid = field.state.meta.isTouched && !field.state.meta.isValid
 
     return (
         <Field data-invalid={isInvalid}>
-            {label && <FieldLabel htmlFor={field.name}>{label}</FieldLabel>}
+            {label && (
+                <FieldLabel htmlFor={field.name}>
+                    {label}
+                    {required && <span className="text-destructive" aria-hidden>*</span>}
+                </FieldLabel>
+            )}
             {props.icon || props.iconRight ? (
                 <InputGroup>
                     {props.icon && <InputGroupAddon>{props.icon}</InputGroupAddon>}

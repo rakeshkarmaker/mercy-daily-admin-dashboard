@@ -27,7 +27,6 @@ import {
     HandHeart,
     HeartHandshake,
     Pencil,
-    Plus,
     RotateCcw,
     Sparkles,
     Trash2,
@@ -35,7 +34,6 @@ import {
 } from 'lucide-react'
 import type {
     PrayerItem,
-    AdminCreatePrayerInput,
     AdminUpdatePrayerInput,
 } from '@/api/prayers'
 import { resolveImage } from '@/api/base'
@@ -51,7 +49,6 @@ export interface PrayersUIProps {
     onTabChange: (tab: 'all' | 'active' | 'answered' | 'deleted') => void
     onSearchChange: (value: string) => void
     onResetSearch: () => void
-    onCreatePrayer: (input: AdminCreatePrayerInput) => Promise<void>
     onUpdatePrayer: (id: string, input: AdminUpdatePrayerInput) => Promise<void>
     onDeletePrayer: (id: string, hard?: boolean) => Promise<void>
 }
@@ -110,7 +107,6 @@ export function PrayersUI({
     onTabChange,
     onSearchChange,
     onResetSearch,
-    onCreatePrayer,
     onUpdatePrayer,
     onDeletePrayer,
 }: PrayersUIProps) {
@@ -164,12 +160,6 @@ export function PrayersUI({
         [stats],
     )
 
-    const openCreate = () => {
-        setEditing(null)
-        setForm(emptyForm)
-        setFormOpen(true)
-    }
-
     const openEdit = (prayer: PrayerItem) => {
         setEditing(prayer)
         setForm({
@@ -187,25 +177,14 @@ export function PrayersUI({
         if (!form.content.trim()) return
         setSaving(true)
         try {
-            if (editing) {
-                await onUpdatePrayer(editing.id, {
-                    title: form.title || undefined,
-                    content: form.content.trim(),
-                    authorName: form.authorName || undefined,
-                    isAnonymous: form.isAnonymous,
-                    isAnswered: form.isAnswered,
-                    prayCount: form.prayCount,
-                })
-            } else {
-                await onCreatePrayer({
-                    title: form.title || undefined,
-                    content: form.content.trim(),
-                    authorName: form.authorName || undefined,
-                    isAnonymous: form.isAnonymous,
-                    isAnswered: form.isAnswered,
-                    prayCount: form.prayCount,
-                })
-            }
+            await onUpdatePrayer(editing!.id, {
+                title: form.title || undefined,
+                content: form.content.trim(),
+                authorName: form.authorName || undefined,
+                isAnonymous: form.isAnonymous,
+                isAnswered: form.isAnswered,
+                prayCount: form.prayCount,
+            })
             setFormOpen(false)
         } finally {
             setSaving(false)
@@ -376,9 +355,6 @@ export function PrayersUI({
                         placeholder="Search prayers..."
                         className="w-full sm:w-64"
                     />
-                    <Button onClick={openCreate} className="gap-2 bg-[#53624D] hover:bg-[#43503e] text-white">
-                        <Plus className="size-4" /> Add prayer
-                    </Button>
                 </div>
             </div>
 
@@ -421,13 +397,13 @@ export function PrayersUI({
                 />
             </div>
 
-            {/* Create / Edit Dialog */}
+            {/* Edit Dialog */}
             <Dialog open={formOpen} onOpenChange={setFormOpen}>
                 <DialogContent className="sm:max-w-lg">
                     <DialogHeader>
-                        <DialogTitle>{editing ? 'Edit Prayer Request' : 'New Prayer Request'}</DialogTitle>
+                        <DialogTitle>Edit Prayer Request</DialogTitle>
                         <DialogDescription>
-                            {editing ? 'Update this community prayer request.' : 'Post a prayer request for the community to stand in agreement.'}
+                            Update this community prayer request.
                         </DialogDescription>
                     </DialogHeader>
 
@@ -443,7 +419,9 @@ export function PrayersUI({
                         </div>
 
                         <div className="space-y-1.5">
-                            <Label htmlFor="prayer-content">Prayer Content *</Label>
+                            <Label htmlFor="prayer-content">
+                                Prayer Content <span className="text-destructive" aria-hidden>*</span>
+                            </Label>
                             <Textarea
                                 id="prayer-content"
                                 value={form.content}
@@ -498,7 +476,7 @@ export function PrayersUI({
                             disabled={saving || !form.content.trim()}
                             className="bg-[#53624D] hover:bg-[#43503e] text-white"
                         >
-                            {saving ? 'Saving...' : editing ? 'Save Changes' : 'Create Prayer'}
+                            {saving ? 'Saving...' : 'Save Changes'}
                         </Button>
                     </DialogFooter>
                 </DialogContent>

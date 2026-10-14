@@ -3,7 +3,7 @@ import { useMemo, useState } from 'react'
 import { useSearchParams } from '@/hooks/use-search-params'
 import { CommunityUI } from '@/components/features/community/community-ui'
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
-import { listPosts, deletePost } from '@/api/community'
+import { listPosts, deletePost, deleteComment } from '@/api/community'
 import type { FilterState } from '@/components/shared/filter-builder'
 import { toast } from 'sonner'
 import * as z from 'zod'
@@ -74,6 +74,17 @@ function CommunityPage() {
         onError: (error: Error) => toast.error(error.message),
     })
 
+    // Admin comment moderation: soft-delete any comment; the thread and
+    // comments COunt refresh after the server confirms.
+    const deleteCommentMutation = useMutation({
+        mutationFn: (id: string) => deleteComment(id),
+        onSuccess: () => {
+            toast.success('Comment deleted')
+            queryClient.invalidateQueries({ queryKey: ['community'] })
+        },
+        onError: (error: Error) => toast.error(error.message),
+    })
+
     const handleSearchChange = (value: string) => {
         mergeSearch({ search: value || undefined, page: 1 })
     }
@@ -99,6 +110,7 @@ function CommunityPage() {
             }}
             onResetSearch={handleResetSearch}
             onDeletePost={(id) => deleteMutation.mutate(id)}
+            onDeleteComment={(id) => deleteCommentMutation.mutateAsync(id).then(() => undefined)}
         />
     )
 }

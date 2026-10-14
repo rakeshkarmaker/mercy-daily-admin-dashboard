@@ -38,16 +38,37 @@ export type StaticContent = {
     updatedAt: string | null
 }
 
+export type BoardingLanguage = 'en' | 'esp' | 'por'
+
+/** Per-language onboarding content (rows for languages other than the base). */
+export type BoardingMessageTranslation = {
+    language: BoardingLanguage
+    message: string
+    verse: string
+}
+
 export type BoardingMessage = {
     id: string
     message: string
     verse: string
+    /** Language of the top-level message/verse in this response. */
+    language: BoardingLanguage
+    /** Stored original language of the base columns — edit forms use this as the base. Optional for rollout tolerance. */
+    baseLanguage?: BoardingLanguage
+    /** Every other language's content. */
+    translations: BoardingMessageTranslation[]
     updatedAt: string
 }
 
 export type UpdateBoardingMessage = {
+    /** Original language of the top-level fields (en default). */
+    language?: BoardingLanguage
     message: string
     verse: string
+    /** Full-replace sync set: languages absent from items are removed server-side. */
+    translations?: {
+        items: BoardingMessageTranslation[]
+    }
 }
 
 /** Singleton app settings (General tab) — GET creates the row on first access. */

@@ -18,6 +18,13 @@ export interface ImageUploadProps {
     alt?: string
     /** Shorter (h-28) variant for tight dialogs. Defaults to h-40. */
     compact?: boolean
+    /**
+     * Delete the Cloudinary asset the moment the X button is clicked
+     * (default). When `false`, X only clears the local form value and the
+     * caller deletes removed assets after its save succeeds — so a
+     * cancelled dialog never orphans the referenced image.
+     */
+    deleteOnRemove?: boolean
 }
 
 /**
@@ -34,6 +41,7 @@ export function ImageUpload({
     label = 'Upload image (PNG, JPG, WEBP)',
     alt = 'Uploaded image',
     compact = false,
+    deleteOnRemove = true,
 }: ImageUploadProps) {
     const inputRef = useRef<HTMLInputElement>(null)
     const [busy, setBusy] = useState(false)
@@ -56,6 +64,12 @@ export function ImageUpload({
     }
 
     const handleRemove = async () => {
+        // Safe-delete mode: clearing is a form-level decision — the caller
+        // deletes the removed asset once its save actually persists.
+        if (!deleteOnRemove) {
+            onChange('')
+            return
+        }
         setBusy(true)
         try {
             // Only Cloudinary-hosted uploads can be deleted on the backend;

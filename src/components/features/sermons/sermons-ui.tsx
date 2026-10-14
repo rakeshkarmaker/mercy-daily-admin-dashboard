@@ -14,7 +14,7 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs'
 import { Textarea } from '@/components/ui/textarea'
 import { Eye, Languages, Pencil, Plus, ThumbsUp, Trash2, Youtube, Languages as LanguagesIcon } from 'lucide-react'
 import { toast } from 'sonner'
-import { resolveImage } from '@/api/base'
+import { cleanupRemovedImages, resolveImage } from '@/api'
 import { Alert, AlertDescription } from '@/components/ui/alert'
 import { FilterBuilder } from '@/components/shared/filter-builder'
 import type { FilterOption, FilterState } from '@/components/shared/filter-builder'
@@ -180,6 +180,10 @@ export function SermonsUI({
             return
         }
 
+        // Cleared optional fields are sent as an explicit null so the
+        // backend actually clears the stored value — an omitted key
+        // (`undefined`) is skipped by the PATCH semantics and the old
+        // content would survive the save.
         const translations: SermonTranslationInput[] = []
         for (const language of ORDERED_LANGUAGES) {
             if (language === base) continue
@@ -188,9 +192,9 @@ export function SermonsUI({
                 translations.push({
                     language,
                     title: form.title.trim(),
-                    overview: form.overview.trim() || undefined,
-                    thumbnailUrl: form.thumbnailUrl.trim() || undefined,
-                    youtubeUrl: form.youtubeUrl.trim() || undefined,
+                    overview: form.overview.trim() || null,
+                    thumbnailUrl: form.thumbnailUrl.trim() || null,
+                    youtubeUrl: form.youtubeUrl.trim() || null,
                 })
             } else if (editing) {
                 translations.push({ language })
@@ -200,8 +204,8 @@ export function SermonsUI({
         const input: SermonInput = {
             language: base,
             title: baseForm.title.trim(),
-            overview: baseForm.overview.trim() || undefined,
-            thumbnailUrl: baseForm.thumbnailUrl.trim() || undefined,
+            overview: baseForm.overview.trim() || null,
+            thumbnailUrl: baseForm.thumbnailUrl.trim() || null,
             youtubeUrl: baseForm.youtubeUrl.trim(),
             status: sharedStatus,
             translations,
@@ -209,8 +213,20 @@ export function SermonsUI({
 
         setSaving(true)
         try {
-            if (editing) await onUpdateSermon(editing.id, input)
-            else await onCreateSermon(input)
+            if (editing) {
+                await onUpdateSermon(editing.id, input)
+                // Save succeeded — delete every Cloudinary thumbnail that
+                // this update removed or replaced (base + all translations).
+                cleanupRemovedImages(
+                    [editing.thumbnailUrl, ...editing.translations.map((t) => t.thumbnailUrl)],
+                    [
+                        input.thumbnailUrl,
+                        ...(input.translations ?? []).flatMap((t) => (t.language === base ? [] : [t.thumbnailUrl ?? null])),
+                    ],
+                )
+            } else {
+                await onCreateSermon(input)
+            }
             setFormOpen(false)
         } finally {
             setSaving(false)
@@ -432,7 +448,9 @@ function LanguageFields({
     return (
         <div className="grid gap-3">
             <label className="grid gap-1.5 text-sm font-medium">
-                Title
+                <span className="flex items-center gap-1">
+                    Title <span className="text-destructive" aria-hidden>*</span>
+                </span>
                 <Input
                     value={values.title}
                     onChange={(event) => set('title', event.target.value)}
@@ -449,7 +467,9 @@ function LanguageFields({
                 <ThumbnailField value={values.thumbnailUrl} disabled={disabled} onChange={(url) => set('thumbnailUrl', url)} />
             </div>
             <label className="grid gap-1.5 text-sm font-medium">
-                YouTube link
+                <span className="flex items-center gap-1">
+                    YouTube link <span className="text-destructive" aria-hidden>*</span>
+                </span>
                 <Input value={values.youtubeUrl} onChange={(event) => set('youtubeUrl', event.target.value)} placeholder="https://www.youtube.com/watch?v=..." aria-label="YouTube link" />
             </label>
         </div>
@@ -492,7 +512,7 @@ function SermonFormDialog({
                 <DialogHeader>
                     <DialogTitle>{editing ? 'Edit sermon' : 'Add sermon'}</DialogTitle>
                     <DialogDescription>
-                        Fill any language tab — the first filled tab becomes the sermon. Empty tabs are ignored.
+                        Only Title and YouTube link are required — fill any language tab, the first filled one becomes the sermon. Clearing a field and saving removes it.
                     </DialogDescription>
                 </DialogHeader>
                 <div className="space-y-4">
@@ -677,7 +697,10 @@ function Metric({ label, value }: { label: string; value: number }) {
 
 /**
  * Thumbnail picker for the sermon form (folder=sermons), backed by the
- * shared controlled ImageUpload.
+ * shared controlled ImageUpload. Safe-delete mode: the X only clears the
+ * form field — `cleanupRemovedImages` deletes the replaced/removed assets
+ * from Cloudinary AFTER the save succeeds, so a cancelled dialog never
+ * orphans the sermon's current image.
  */
 function ThumbnailField({ value, disabled, onChange }: { value: string; disabled?: boolean; onChange: (url: string) => void }) {
     return (
@@ -688,6 +711,7 @@ function ThumbnailField({ value, disabled, onChange }: { value: string; disabled
             disabled={disabled}
             label="Upload thumbnail (PNG, JPG, WEBP)"
             alt="Sermon thumbnail"
+            deleteOnRemove={false}
         />
     )
 }

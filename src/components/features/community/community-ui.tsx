@@ -6,7 +6,9 @@ import { SearchInput } from '@/components/shared/search-input'
 import { FilterBuilder } from '@/components/shared/filter-builder'
 import type { FilterState, FilterOption } from '@/components/shared/filter-builder'
 import { Calendar, Eye, Trash2, Heart, MessageCircle, Share2, Image as ImageIcon, Users } from 'lucide-react'
-import type { CommunityPost } from '@/api/community'
+import { toast } from 'sonner'
+import type { CommunityPost, CommunityComment } from '@/api/community'
+import { listComments } from '@/api/community'
 import {
     Dialog,
     DialogContent,
@@ -29,6 +31,7 @@ export interface CommunityUIProps {
     onFiltersChange: (filters: FilterState[]) => void
     onResetSearch: () => void
     onDeletePost: (id: string) => void
+    onDeleteComment: (id: string) => Promise<void>
 }
 
 export function CommunityUI({
@@ -43,9 +46,44 @@ export function CommunityUI({
     onFiltersChange,
     onResetSearch,
     onDeletePost,
+    onDeleteComment,
 }: CommunityUIProps) {
     const [viewing, setViewing] = useState<CommunityPost | null>(null)
     const [deletingId, setDeletingId] = useState<string | null>(null)
+    const [comments, setComments] = useState<CommunityComment[]>([])
+    const [commentsTotal, setCommentsTotal] = useState(0)
+    const [commentsLoading, setCommentsLoading] = useState(false)
+    const [deletingCommentId, setDeletingCommentId] = useState<string | null>(null)
+
+    // Comments load with the post view dialog (top-level + nested replies);
+    // the admin deletes any comment inline.
+    const openView = (post: CommunityPost) => {
+        setViewing(post)
+        setComments([])
+        setCommentsTotal(post.commentsCount)
+        setCommentsLoading(true)
+        listComments(post.id, { limit: 50 })
+            .then((page) => {
+                setComments(page.data)
+                setCommentsTotal(page.total)
+            })
+            .catch((err: unknown) => toast.error(err instanceof Error ? err.message : 'Failed to load comments'))
+            .finally(() => setCommentsLoading(false))
+    }
+
+    const handleDeleteComment = async (commentId: string) => {
+        setDeletingCommentId(commentId)
+        try {
+            await onDeleteComment(commentId)
+            // Post + thread both update: the comment hides and the
+            // post's commentsCount drops (the counter is server-managed).
+            setComments((previous) => previous.filter((c) => c.id !== commentId))
+            setCommentsTotal((previous) => Math.max(0, previous - 1))
+            if (viewing) setViewing({ ...viewing, commentsCount: Math.max(0, viewing.commentsCount - 1) })
+        } finally {
+            setDeletingCommentId(null)
+        }
+    }
 
     const filterOptions: FilterOption[] = useMemo(
         () => [
@@ -140,7 +178,7 @@ export function CommunityUI({
                 render: (row) => (
                     <div className="flex items-center justify-center gap-2">
                         <button
-                            onClick={() => setViewing(row)}
+                            onClick={() => openView(row)}
                             className="p-2 rounded-full bg-primary/10 text-primary hover:bg-primary/20 transition-colors"
                             aria-label="View post"
                         >
@@ -199,7 +237,7 @@ export function CommunityUI({
                     if (!open) setViewing(null)
                 }}
             >
-                <DialogContent className="sm:max-w-lg">
+                <DialogContent className="flex max-h-[90vh] overscroll-contain flex-col overflow-y-auto sm:max-w-lg">
                     {viewing && (
                         <>
                             <DialogHeader>
@@ -243,10 +281,48 @@ export function CommunityUI({
                                     <Share2 className="size-4" /> {viewing.sharesCount} shares
                                 </span>
                             </div>
+
+                            {/* Comments thread (admin view — deletes allowed) */}
+                            <div className="space-y-3">
+                                <div className="flex items-center justify-between">
+                                    <h4 className="text-sm font-semibold text-foreground">Comments ({commentsTotal})</h4>
+                                </div>
+                                {commentsLoading ? (
+                                    <CommentListSkeleton />
+                                ) : comments.length === 0 ? (
+                                    <p className="py-4 text-center text-sm text-muted-foreground">No comments on this post.</p>
+                                ) : (
+                                    <div className="space-y-2.5 max-h-80 overflow-y-auto pr-1">
+                                        {comments.map((comment) => (
+                                            <CommentRow
+                                                key={comment.id}
+                                                comment={comment}
+                                                deleting={deletingCommentId === comment.id}
+                                                onDelete={() => handleDeleteComment(comment.id)}
+                                            />
+                                        ))}
+                                    </div>
+                                )}
+                            </div>
                         </>
                     )}
                 </DialogContent>
             </Dialog>
+
+            {/* Comment delete confirm */}
+            <TrashConfirm
+                open={deletingCommentId !== null}
+                onOpenChange={(o) => {
+                    if (!o) setDeletingCommentId(null)
+                }}
+                name={`this comment${deletingCommentId !== null ? ' by ' + (comments.find((c) => c.id === deletingCommentId)?.author?.name ?? 'unknown') : ''}`}
+                onConfirm={() => {
+                    if (deletingCommentId !== null && deletingCommentId) {
+                        void handleDeleteComment(deletingCommentId)
+                        setDeletingCommentId(null)
+                    }
+                }}
+            />
 
             {/* Delete confirm */}
             <TrashConfirm
@@ -269,5 +345,99 @@ export function CommunityUI({
                 }}
             />
         </>
+    )
+}
+
+/**
+ * Loading placeholder for the comments thread: three pulsing rows shaped
+ * like comment cards so the thread height doesn't jump when the data
+ * lands. Pure CSS (animate-pulse) — no extra dependency.
+ */
+function CommentListSkeleton() {
+    return (
+        <div className="space-y-2.5" aria-busy="true" aria-live="polite">
+            {[0, 1, 2].map((i) => (
+                <div key={i} className="rounded-lg border border-border/50 bg-card/60 p-3">
+                    <div className="flex items-center gap-2">
+                        <div className="size-7 shrink-0 animate-pulse rounded-full bg-muted" />
+                        <div className="flex-1 space-y-1.5">
+                            <div className="h-3 w-24 animate-pulse rounded bg-muted" />
+                            <div className="h-2 w-14 animate-pulse rounded bg-muted/70" />
+                        </div>
+                    </div>
+                    <div className="mt-2.5 space-y-1.5">
+                        <div className="h-2.5 w-full animate-pulse rounded bg-muted" />
+                        <div className="h-2.5 w-4/5 animate-pulse rounded bg-muted" />
+                    </div>
+                </div>
+            ))}
+            <span className="sr-only">Loading comments…</span>
+        </div>
+    )
+}
+
+/** One comment (with nested replies) in the admin post-view dialog. */
+function CommentRow({
+    comment,
+    deleting,
+    onDelete,
+}: {
+    comment: CommunityComment
+    deleting: boolean
+    onDelete: () => void
+}) {
+    return (
+        <div className="rounded-lg border border-border/50 bg-card/60 p-3">
+            <div className="flex items-start justify-between gap-2">
+                <div className="flex items-center gap-2 min-w-0">
+                    <div className="size-7 rounded-full overflow-hidden shrink-0 bg-muted">
+                        {comment.author?.avatarUrl ? (
+                            <img src={resolveImage(comment.author.avatarUrl)} alt={comment.author.name} className="size-full object-cover" />
+                        ) : (
+                            <div className="size-full flex items-center justify-center text-[10px] font-semibold text-muted-foreground">
+                                {(comment.author?.name ?? '?').slice(0, 2).toUpperCase()}
+                            </div>
+                        )}
+                    </div>
+                    <div className="min-w-0">
+                        <span className="text-xs font-semibold text-foreground truncate block">{comment.author?.name ?? 'Unknown'}</span>
+                        <span className="text-[10px] text-muted-foreground">{comment.timeAgo}</span>
+                    </div>
+                </div>
+                <button
+                    type="button"
+                    onClick={onDelete}
+                    disabled={deleting}
+                    className="p-1.5 rounded-full text-muted-foreground hover:text-destructive hover:bg-destructive/10 transition-colors disabled:opacity-50"
+                    aria-label="Delete comment"
+                    title="Delete comment"
+                >
+                    <Trash2 className="size-3.5" />
+                </button>
+            </div>
+            <p className="mt-2 text-xs text-foreground/90 whitespace-pre-wrap break-words">{comment.content}</p>
+            {comment.replies.length > 0 && (
+                <div className="mt-2 space-y-2 border-l-2 border-border/40 pl-3">
+                    {comment.replies.map((reply) => (
+                        <div key={reply.id} className="flex items-start justify-between gap-2">
+                            <div className="min-w-0">
+                                <span className="text-[10px] font-semibold text-foreground block truncate">{reply.author?.name ?? 'Unknown'}</span>
+                                <p className="text-[11px] text-muted-foreground whitespace-pre-wrap break-words">{reply.content}</p>
+                            </div>
+                            <button
+                                type="button"
+                                onClick={onDelete}
+                                disabled={deleting}
+                                className="p-1 rounded-full text-muted-foreground hover:text-destructive hover:bg-destructive/10 transition-colors disabled:opacity-50"
+                                aria-label="Delete reply"
+                                title="Delete reply"
+                            >
+                                <Trash2 className="size-3" />
+                            </button>
+                        </div>
+                    ))}
+                </div>
+            )}
+        </div>
     )
 }

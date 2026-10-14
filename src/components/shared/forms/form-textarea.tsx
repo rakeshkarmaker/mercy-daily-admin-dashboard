@@ -6,15 +6,20 @@ type FormTextareaProps = {
     label: string
     placeholder?: string
     disabled?: boolean
+    /** Renders a red * after the label (visual required mark only). */
+    required?: boolean
 }
 
-export function FormTextarea({ label, ...props }: FormTextareaProps) {
+export function FormTextarea({ label, required, ...props }: FormTextareaProps) {
     const field = useFieldContext<string>()
     const isInvalid = field.state.meta.isTouched && !field.state.meta.isValid
 
     return (
         <Field data-invalid={isInvalid}>
-            <FieldLabel htmlFor={field.name}>{label}</FieldLabel>
+            <FieldLabel htmlFor={field.name}>
+                {label}
+                {required && <span className="text-destructive" aria-hidden>*</span>}
+            </FieldLabel>
             <Textarea
                 id={field.name}
                 rows={6}

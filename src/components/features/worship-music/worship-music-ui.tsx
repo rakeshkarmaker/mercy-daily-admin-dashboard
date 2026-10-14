@@ -26,7 +26,8 @@ import {
     DialogTitle,
 } from '@/components/ui/dialog'
 import { TrashConfirm } from '@/components/shared/trash-confirm'
-import { resolveImage } from '@/api'
+import { toast } from 'sonner'
+import { cleanupRemovedImages, resolveImage } from '@/api'
 import { CONTENT_LANGUAGES, LANGUAGE_FILTER_OPTIONS } from '@/lib/language'
 import type { ContentLanguage } from '@/lib/language'
 import { FilterBuilder } from '@/components/shared/filter-builder'
@@ -40,7 +41,6 @@ import {
     Calendar,
     ChevronsUpDown,
     Clock,
-    ImagePlus,
     Languages,
     ListMusic,
     Music,
@@ -89,13 +89,14 @@ export interface WorshipMusicUIProps {
     onDeletePlaylist: (id: string) => Promise<void>
 }
 
-/** Per-language content: the fields a translator actually rewrites (audio included — each language has its own recording). */
+/** Per-language content: the fields a translator actually rewrites (audio and cover included — each language carries its own recording and cover art). */
 type LanguageFormState = {
     title: string
     description: string
     bibleReference: string
-    /** Songs only — each language has its own recording. Playlists omit it. */
+    /** Optional per-language overrides — undefined on playlists, '' on songs. */
     audioUrl?: string
+    coverUrl?: string
 }
 
 type LanguageForms = Record<ContentLanguage, LanguageFormState>
@@ -130,7 +131,6 @@ type SongFormState = {
     artist: string
     /** Duration in decimal minutes (e.g. 4.5). Sent as whole seconds. */
     durationMinutes: string
-    coverUrl: string
     playlistId: string
     status: WorshipSongStatus
     isFeatured: boolean
@@ -139,7 +139,6 @@ type SongFormState = {
 const emptySongForm: SongFormState = {
     artist: 'Mercy Daily Worship',
     durationMinutes: '',
-    coverUrl: '',
     playlistId: '',
     status: 'PUBLISHED',
     isFeatured: false,
@@ -165,6 +164,7 @@ const songLanguageForms = (song: WorshipSong): LanguageForms => {
         description: song.description ?? '',
         bibleReference: song.bibleReference ?? '',
         audioUrl: song.audioUrl ?? '',
+        coverUrl: song.coverUrl ?? '',
     }
     for (const t of song.translations) {
         if (t.language === base) continue
@@ -173,6 +173,7 @@ const songLanguageForms = (song: WorshipSong): LanguageForms => {
             description: t.description ?? '',
             bibleReference: t.bibleReference ?? '',
             audioUrl: t.audioUrl ?? '',
+            coverUrl: t.coverUrl ?? '',
         }
     }
     return forms
@@ -180,25 +181,30 @@ const songLanguageForms = (song: WorshipSong): LanguageForms => {
 
 /**
  * Sync blocks for the languages other than the base one. A block with a
- * title upserts that language; an empty title on update removes the
- * stored translation.
+ * title OR any audio/cover override upserts that language; an empty title
+ * with no overrides on update removes the stored translation. A saved
+ * block without its own title reuses the base title (the translation row
+ * stores a title; the UI auto-fills it so URL-only entries persist).
  */
 function toSongTranslations(
     forms: LanguageForms,
     baseLanguage: ContentLanguage,
+    baseTitle: string,
     editing: boolean,
 ): SongTranslationInput[] {
     const items: SongTranslationInput[] = []
     for (const language of ['en', 'esp', 'por'] as const) {
         if (language === baseLanguage) continue
         const form = forms[language]
-        if (form.title.trim()) {
+        const hasOverrides = Boolean(form.audioUrl?.trim() || form.coverUrl?.trim())
+        if (form.title.trim() || hasOverrides) {
             items.push({
                 language,
-                title: form.title.trim(),
+                title: form.title.trim() || baseTitle,
                 description: form.description.trim() || null,
                 bibleReference: form.bibleReference.trim() || null,
                 audioUrl: form.audioUrl?.trim() || null,
+                coverUrl: form.coverUrl?.trim() || null,
             })
         } else if (editing) {
             items.push({ language })
@@ -325,7 +331,9 @@ function LanguageTabs({
                     <TabsContent key={language.value} value={language.value} className="mt-0">
                         <div className="space-y-3">
                             <div className="grid gap-1.5">
-                                <Label className="text-xs font-medium">Title</Label>
+                                <Label className="text-xs font-medium">
+                                    Title <span className="text-destructive" aria-hidden>*</span>
+                                </Label>
                                 <Input
                                     value={form.title}
                                     onChange={(e) => set('title', e.target.value)}
@@ -355,18 +363,33 @@ function LanguageTabs({
                                 />
                             </div>
                             {showAudioField && (
-                                <div className="grid gap-1.5">
-                                    <Label className="text-xs font-medium">Audio file (.mp3)</Label>
-                                    <Input
-                                        value={form.audioUrl ?? ''}
-                                        onChange={(e) => set('audioUrl', e.target.value)}
-                                        placeholder="https://example.com/audio.mp3"
-                                        aria-label={`Audio file (${language.label})`}
-                                    />
-                                    <p className="text-[11px] text-muted-foreground">
-                                        Each language has its own recording — empty falls back to the track&apos;s base audio.
-                                    </p>
-                                </div>
+                                <>
+                                    <div className="grid gap-1.5">
+                                        <Label className="text-xs font-medium">
+                                            Audio file (.mp3) <span className="text-destructive" aria-hidden>*</span>
+                                        </Label>
+                                        <Input
+                                            value={form.audioUrl ?? ''}
+                                            onChange={(e) => set('audioUrl', e.target.value)}
+                                            placeholder="https://example.com/audio.mp3"
+                                            aria-label={`Audio file (${language.label})`}
+                                        />
+                                        <p className="text-[11px] text-muted-foreground">
+                                            Each language has its own recording — empty falls back to the track&apos;s base audio.
+                                        </p>
+                                    </div>
+                                    {/* Per-language cover art — empty inherits the base track&apos;s cover. */}
+                                    <div className="grid gap-1.5">
+                                        <Label className="text-xs font-medium">Cover art ({language.label})</Label>
+                                        <ImageUpload
+                                            value={form.coverUrl ?? ''}
+                                            onChange={(url) => set('coverUrl', url)}
+                                            folder="worship-music"
+                                            compact
+                                            deleteOnRemove={false}
+                                        />
+                                    </div>
+                                </>
                             )}
                         </div>
                     </TabsContent>
@@ -511,7 +534,6 @@ export function WorshipMusicUI({
         setSongForm({
             artist: song.artist,
             durationMinutes: secondsToMinutes(song.durationSeconds),
-            coverUrl: song.coverUrl ?? '',
             playlistId: song.playlist?.id ?? '',
             status: song.status,
             isFeatured: song.isFeatured,
@@ -525,27 +547,51 @@ export function WorshipMusicUI({
         const baseLang = resolveBase(songLangForms, editingSong ? storedSongBase(editingSong) : undefined)
         if (!baseLang) return
         const base = songLangForms[baseLang]
-        if (!base.title.trim() || !songForm.artist.trim()) return
+        // Title + audio link are required for the track itself; the other
+        // language tabs are optional and may carry just an audio/cover
+        // override (their title falls back to the base title per field).
+        if (!base.title.trim() || !base.audioUrl?.trim()) {
+            toast.error('Title and audio link are required in at least one language tab.')
+            return
+        }
+        const baseTitle = base.title.trim()
 
         const input: SongInput = {
             language: baseLang,
-            title: base.title.trim(),
+            title: baseTitle,
             artist: songForm.artist.trim() || undefined,
             durationSeconds: minutesToSeconds(songForm.durationMinutes),
             audioUrl: base.audioUrl?.trim() || null,
-            coverUrl: songForm.coverUrl.trim() || null,
+            coverUrl: base.coverUrl?.trim() || null,
             description: base.description.trim() || null,
             bibleReference: base.bibleReference.trim() || null,
             playlistId: songForm.playlistId || null,
             status: songForm.status,
             isFeatured: songForm.isFeatured,
             translations: {
-                items: toSongTranslations(songLangForms, baseLang, Boolean(editingSong)),
+                items: toSongTranslations(songLangForms, baseLang, baseTitle, Boolean(editingSong)),
             },
         }
 
-        if (editingSong) await onUpdateSong(editingSong.id, input)
-        else await onCreateSong(input)
+        if (editingSong) {
+            await onUpdateSong(editingSong.id, input)
+            // Save succeeded — delete every Cloudinary cover this save
+            // cleared or replaced (base + all language overrides).
+            // The SongInput type unions the sync shape with a bare array; at
+            // runtime we always build the { items } sync shape here.
+            const sentItems = Array.isArray(input.translations)
+                ? input.translations
+                : (input.translations?.items ?? [])
+            cleanupRemovedImages(
+                [editingSong.coverUrl, ...editingSong.translations.map((t) => t.coverUrl)],
+                [
+                    input.coverUrl,
+                    ...sentItems.flatMap((t) => (t.language === baseLang ? [] : [t.coverUrl ?? null])),
+                ],
+            )
+        } else {
+            await onCreateSong(input)
+        }
         setSongFormOpen(false)
     }
 
@@ -741,6 +787,20 @@ export function WorshipMusicUI({
         setPlaylistFormOpen(true)
     }
 
+    // Primary-button enablement mirrors the submit guards: a base language
+    // tab with Title (+ audio for songs) must be filled before saving.
+    const songBaseLang = resolveBase(songLangForms, editingSong ? storedSongBase(editingSong) : undefined)
+    const canSubmitSong = Boolean(
+        songBaseLang &&
+        songLangForms[songBaseLang].title.trim() &&
+        songLangForms[songBaseLang].audioUrl?.trim(),
+    )
+    const playlistBaseLang = resolveBase(playlistLangForms, editingPlaylist ? storedPlaylistBase(editingPlaylist) : undefined)
+    const canSubmitPlaylist = Boolean(
+        playlistBaseLang &&
+        playlistLangForms[playlistBaseLang].title.trim(),
+    )
+
     return (
         <div className="flex w-full max-w-full flex-col gap-4 pb-24">
             <div className="flex flex-col gap-4 border-b border-border/50 pb-4 lg:flex-row lg:items-center lg:justify-between">
@@ -882,7 +942,7 @@ export function WorshipMusicUI({
                     <DialogHeader>
                         <DialogTitle>{editingSong ? 'Edit Worship Music' : 'Add New Worship Music'}</DialogTitle>
                         <DialogDescription>
-                            Fill any language tab — the first filled tab becomes the track. Empty tabs are ignored.
+                            Only Title and the audio file link are required — fill any language tab, it becomes the track&apos;s primary language. Other tabs fall back to it per field.
                         </DialogDescription>
                     </DialogHeader>
 
@@ -907,14 +967,11 @@ export function WorshipMusicUI({
                             </h4>
                             <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
                                 <div className="grid gap-1.5">
-                                    <Label className="text-xs font-medium">
-                                        Author / Artist <span className="text-destructive">*</span>
-                                    </Label>
+                                    <Label className="text-xs font-medium">Author / Artist</Label>
                                     <Input
                                         value={songForm.artist}
                                         onChange={(e) => setSongForm({ ...songForm, artist: e.target.value })}
                                         placeholder="e.g. Bethel Music"
-                                        required
                                     />
                                 </div>
                                 <div className="grid gap-1.5">
@@ -937,18 +994,6 @@ export function WorshipMusicUI({
                                     onChange={(playlistId) => setSongForm({ ...songForm, playlistId })}
                                 />
                             </div>
-                        </div>
-
-                        {/* Cover Art Upload */}
-                        <div className="border-b pb-4 space-y-3">
-                            <h4 className="text-xs font-bold uppercase tracking-wider text-muted-foreground flex items-center gap-1.5">
-                                <ImagePlus className="size-3.5 text-primary" /> Cover Art
-                            </h4>
-                            <ImageUpload
-                                value={songForm.coverUrl}
-                                onChange={(coverUrl) => setSongForm({ ...songForm, coverUrl })}
-                                folder="worship-music"
-                            />
                         </div>
 
                         {/* Publishing */}
@@ -997,7 +1042,7 @@ export function WorshipMusicUI({
                         </Button>
                         <Button
                             onClick={submitSongForm}
-                            disabled={!resolveBase(songLangForms, editingSong ? storedSongBase(editingSong) : undefined) || !songForm.artist.trim()}
+                            disabled={!canSubmitSong}
                             className="bg-primary hover:bg-primary/90 text-primary-foreground"
                         >
                             {editingSong ? 'Save Changes' : 'Add Music Track'}
@@ -1012,7 +1057,7 @@ export function WorshipMusicUI({
                     <DialogHeader>
                         <DialogTitle>{editingPlaylist ? 'Edit Playlist' : 'Add New Playlist'}</DialogTitle>
                         <DialogDescription>
-                            Switch tabs to manage each language. The playlist is the category in music context.
+                            Only Title is required — switch tabs to manage each language. Clearing a field and saving removes it.
                         </DialogDescription>
                     </DialogHeader>
                     <div className="grid gap-3 py-2">
@@ -1032,6 +1077,7 @@ export function WorshipMusicUI({
                                 onChange={(coverUrl) => setPlaylistForm({ ...playlistForm, coverUrl })}
                                 folder="worship-music"
                                 compact
+                                deleteOnRemove={false}
                             />
                         </div>
                         <div className="flex items-center justify-between border rounded-lg p-3 bg-muted/20">
@@ -1054,6 +1100,10 @@ export function WorshipMusicUI({
                                 const baseLang = resolveBase(playlistLangForms, editingPlaylist ? storedPlaylistBase(editingPlaylist) : undefined)
                                 if (!baseLang) return
                                 const base = playlistLangForms[baseLang]
+                                if (!base.title.trim()) {
+                                    toast.error('Title is required in at least one language tab.')
+                                    return
+                                }
                                 const input: PlaylistInput = {
                                     language: baseLang,
                                     title: base.title.trim(),
@@ -1064,11 +1114,17 @@ export function WorshipMusicUI({
                                         items: toPlaylistTranslations(playlistLangForms, baseLang, Boolean(editingPlaylist)),
                                     },
                                 }
-                                if (editingPlaylist) await onUpdatePlaylist(editingPlaylist.id, input)
-                                else await onCreatePlaylist(input)
+                                if (editingPlaylist) {
+                                    await onUpdatePlaylist(editingPlaylist.id, input)
+                                    // Save succeeded — delete the Cloudinary cover
+                                    // that this save cleared or replaced.
+                                    cleanupRemovedImages([editingPlaylist.coverUrl], [input.coverUrl])
+                                } else {
+                                    await onCreatePlaylist(input)
+                                }
                                 setPlaylistFormOpen(false)
                             }}
-                            disabled={!resolveBase(playlistLangForms, editingPlaylist ? storedPlaylistBase(editingPlaylist) : undefined)}
+                            disabled={!canSubmitPlaylist}
                             className="bg-primary hover:bg-primary/90 text-primary-foreground"
                         >
                             Save Playlist

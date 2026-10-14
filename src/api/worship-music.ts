@@ -17,6 +17,8 @@ export type SongTranslationInput = {
     bibleReference?: string | null
     /** Per-language audio file — falls back to the track's own audioUrl when null. */
     audioUrl?: string | null
+    /** Per-language cover art — falls back to the track's own coverUrl when null. */
+    coverUrl?: string | null
 }
 
 export type SongTranslationsSync = TranslationsSync<SongTranslationInput>

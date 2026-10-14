@@ -47,21 +47,22 @@ export type Sermon = {
     timeAgo: string
 }
 
-/** Per-language form block sent to the API. Empty title on update = delete that translation. */
+/** Per-language form block sent to the API. Empty title on update = delete that translation. Optional text/image fields accept null — an explicit null (vs an omitted key) CLEARS the stored value on update. */
 export type SermonTranslationInput = {
     language: SermonLanguage
     title?: string
-    overview?: string
-    thumbnailUrl?: string
-    youtubeUrl?: string
+    overview?: string | null
+    thumbnailUrl?: string | null
+    youtubeUrl?: string | null
 }
 
 export type SermonInput = {
     /** Original language of the top-level fields (en default). */
     language?: SermonLanguage
     title: string
-    overview?: string
-    thumbnailUrl?: string
+    /** Explicit null clears the stored value on update; undefined leaves it untouched. */
+    overview?: string | null
+    thumbnailUrl?: string | null
     youtubeUrl: string
     status?: SermonStatus
     translations?: SermonTranslationInput[]

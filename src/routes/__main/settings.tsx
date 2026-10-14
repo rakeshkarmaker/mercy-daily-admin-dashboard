@@ -11,9 +11,15 @@ import { toast } from 'sonner'
 import * as z from 'zod'
 import JoditEditor from 'jodit-react'
 import { Dialog, DialogContent, DialogTitle } from '@/components/ui/dialog'
+import { Input } from '@/components/ui/input'
+import { Textarea } from '@/components/ui/textarea'
+import { Label } from '@/components/ui/label'
+import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs'
 import { Badge } from '@/components/ui/badge'
 import { appSettingsApi, staticContentApi, boardingMessageApi } from '@/api/settings'
-import type { AppSetting, UpdateAppSetting, BoardingMessage, UpdateBoardingMessage } from '@/api/settings'
+import type { AppSetting, UpdateAppSetting, BoardingMessage, UpdateBoardingMessage, BoardingLanguage } from '@/api/settings'
+import { CONTENT_LANGUAGES } from '@/lib/language'
+import type { ContentLanguage } from '@/lib/language'
 
 export const Route = createFileRoute('/__main/settings')({
     component: RouteComponent,
@@ -79,6 +85,22 @@ const onboardingSchema = z.object({
     message: z.string().trim().min(1, 'Enter the boarding message').max(1000, 'Message must be 1000 characters or less'),
     verse: z.string().trim().min(1, 'Enter the verse').max(500, 'Verse must be 500 characters or less'),
 })
+
+/** Per-language blocks for the onboarding message (base = the form fields). */
+type OnboardingLanguageForms = Record<ContentLanguage, { message: string; verse: string }>
+
+const emptyOnboardingLanguageForms = (): OnboardingLanguageForms => ({
+    en: { message: '', verse: '' },
+    esp: { message: '', verse: '' },
+    por: { message: '', verse: '' },
+})
+
+const ONBOARDING_LANGUAGES = ['en', 'esp', 'por'] as const
+
+/** Language tab label lookup for the onboarding tabs. */
+function onboardingLanguageLabel(language: ContentLanguage): string {
+    return CONTENT_LANGUAGES.find((l) => l.value === language)?.label ?? language
+}
 
 // ─── Main Component ─────────────────────────────────────────────────────────────
 
@@ -317,19 +339,76 @@ function OnboardingTab() {
 }
 
 function OnboardingForm({ initial, onSave }: { initial?: BoardingMessage; onSave: (data: UpdateBoardingMessage) => Promise<unknown> }) {
+    // Stored original language of the base columns — immune to any
+    // ?language= projection, mirrors sermons/worship edit forms.
+    const storedBase = ((initial?.baseLanguage ?? initial?.language ?? 'en') as BoardingLanguage) satisfies ContentLanguage
+    // English is the default tab (the base/original language).
+    const [activeLanguage, setActiveLanguage] = useState<ContentLanguage>('en')
+    // Per-language blocks for languages OTHER than the form's base; the
+    // base-language fields stay in the TanStack form (schema-validated).
+    const [languageForms, setLanguageForms] = useState<OnboardingLanguageForms>(() => {
+        const forms = emptyOnboardingLanguageForms()
+        for (const t of initial?.translations ?? []) {
+            if (t.language === storedBase) continue
+            forms[t.language] = { message: t.message, verse: t.verse }
+        }
+        return forms
+    })
+    const [saving, setSaving] = useState(false)
+
     const form = useAppForm({
         defaultValues: {
             message: initial?.message ?? '',
             verse: initial?.verse ?? '',
         },
         validators: { onChange: onboardingSchema },
-        onSubmit: async ({ value }) => {
-            await onSave({
-                message: value.message.trim(),
-                verse: value.verse.trim(),
-            })
-        },
     })
+
+    const submitForm = async () => {
+        const values = form.state.values
+        const baseMessage = values.message.trim()
+        const baseVerse = values.verse.trim()
+        if (!baseMessage || !baseVerse) {
+            toast.error('Message and verse are required.')
+            return
+        }
+
+        // All three languages are required — collect the missing ones.
+        const missing = []
+        for (const language of ONBOARDING_LANGUAGES) {
+            if (language === storedBase) continue
+            const block = languageForms[language]
+            if (!block.message.trim() || !block.verse.trim()) missing.push(onboardingLanguageLabel(language))
+        }
+        if (missing.length > 0) {
+            toast.error(`Message and verse are required in: ${missing.join(', ')}.`)
+            return
+        }
+
+        const translations = {
+            items: ONBOARDING_LANGUAGES.flatMap((language): NonNullable<UpdateBoardingMessage['translations']>['items'] => {
+                if (language === storedBase) return []
+                const block = languageForms[language]
+                return [{
+                    language: language as BoardingLanguage,
+                    message: block.message.trim(),
+                    verse: block.verse.trim(),
+                }]
+            }),
+        }
+
+        setSaving(true)
+        try {
+            await onSave({
+                language: storedBase,
+                message: baseMessage,
+                verse: baseVerse,
+                translations,
+            })
+        } finally {
+            setSaving(false)
+        }
+    }
 
     return (
         <form
@@ -342,25 +421,90 @@ function OnboardingForm({ initial, onSave }: { initial?: BoardingMessage; onSave
             <div>
                 <h3 className="text-xl font-semibold text-foreground">Onboarding</h3>
                 <p className="text-sm text-muted-foreground mt-0.5">
-                    Welcome message shown when the app starts. Both fields are public — the mobile app reads them live.
+                    Welcome message shown when the app starts, per language. Both fields are public — the mobile app reads them live.
                 </p>
             </div>
 
             <Separator />
 
-            <div className="grid grid-cols-1 gap-5 max-w-2xl">
-                <form.AppField name="message">
-                    {(field) => <field.FormTextarea label="Message" placeholder="Welcome to Mercy Daily — begin each day in grace." />}
-                </form.AppField>
-                <form.AppField name="verse">
-                    {(field) => (
-                        <field.FormInput
-                            label="Verse"
-                            placeholder="“For I know the plans I have for you,” declares the Lord — Jeremiah 29:11"
-                        />
-                    )}
-                </form.AppField>
-            </div>
+            <Tabs value={activeLanguage} onValueChange={(value) => setActiveLanguage(value as ContentLanguage)} className="gap-3">
+                <TabsList className="grid h-10 w-full max-w-sm grid-cols-3">
+                    {ONBOARDING_LANGUAGES.map((language) => {
+                        // Base-language blocks read the TanStack form; other
+                        // tabs read the per-language state.
+                        const isActiveBase = language === storedBase
+                        const filled = isActiveBase
+                            ? Boolean(form.state.values.message.trim())
+                            : Boolean(languageForms[language].message.trim())
+                        return (
+                            <TabsTrigger key={language} value={language} className="gap-1.5">
+                                {onboardingLanguageLabel(language)}
+                                {filled && <span className="inline-block size-1.5 rounded-full bg-primary" aria-hidden />}
+                            </TabsTrigger>
+                        )
+                    })}
+                </TabsList>
+
+                {ONBOARDING_LANGUAGES.map((language) => (
+                    <TabsContent key={language} value={language}>
+                        {language === storedBase ? (
+                            <div className="grid grid-cols-1 gap-5">
+                                <form.AppField name="message">
+                                    {(field) => <field.FormTextarea label="Message" required placeholder="Welcome to Mercy Daily — begin each day in grace." />}
+                                </form.AppField>
+                                <form.AppField name="verse">
+                                    {(field) => (
+                                        <field.FormInput
+                                            label="Verse"
+                                            required
+                                            placeholder="“For I know the plans I have for you,” declares the Lord — Jeremiah 29:11"
+                                        />
+                                    )}
+                                </form.AppField>
+                            </div>
+                        ) : (
+                            <div className="grid grid-cols-1 gap-5">
+                                <div className="grid gap-1.5">
+                                    <Label className="text-xs font-medium">
+                                        Message <span className="text-destructive" aria-hidden>*</span>
+                                    </Label>
+                                    <Textarea
+                                        rows={6}
+                                        value={languageForms[language].message}
+                                        onChange={(e) =>
+                                            setLanguageForms((previous) => ({
+                                                ...previous,
+                                                [language]: { ...previous[language], message: e.target.value },
+                                            }))
+                                        }
+                                        placeholder="Bienvenido a Mercy Daily — comienza cada día en gracia."
+                                        aria-label={`Message (${onboardingLanguageLabel(language)})`}
+                                    />
+                                </div>
+                                <div className="grid gap-1.5">
+                                    <Label className="text-xs font-medium">
+                                        Verse <span className="text-destructive" aria-hidden>*</span>
+                                    </Label>
+                                    <Input
+                                        value={languageForms[language].verse}
+                                        onChange={(e) =>
+                                            setLanguageForms((previous) => ({
+                                                ...previous,
+                                                [language]: { ...previous[language], verse: e.target.value },
+                                            }))
+                                        }
+                                        placeholder="«Porque yo sé los planes que tengo para ustedes» — Jeremías 29:11"
+                                        aria-label={`Verse (${onboardingLanguageLabel(language)})`}
+                                    />
+                                </div>
+                                <p className="text-[11px] text-muted-foreground">
+                                    Both fields are required — the {onboardingLanguageLabel(language)} onboarding screen shows this content.
+                                </p>
+                            </div>
+                        )}
+                    </TabsContent>
+                ))}
+            </Tabs>
 
             {initial?.updatedAt && (
                 <p className="text-xs text-muted-foreground">
@@ -370,11 +514,15 @@ function OnboardingForm({ initial, onSave }: { initial?: BoardingMessage; onSave
             )}
 
             <div className="mt-2">
-                <form.AppForm>
-                    <Button type="submit" variant="default" disabled={form.state.isSubmitting} className="w-full sm:w-62.5">
-                        Save
-                    </Button>
-                </form.AppForm>
+                <Button
+                    type="button"
+                    variant="default"
+                    disabled={saving || form.state.isSubmitting}
+                    onClick={submitForm}
+                    className="w-full sm:w-62.5"
+                >
+                    {saving || form.state.isSubmitting ? 'Saving...' : 'Save'}
+                </Button>
             </div>
         </form>
     )
@@ -464,7 +612,7 @@ function ProfileTab() {
                 <form.AppField name="name">
                     {(field) => (
                         <div className="relative">
-                            <field.FormInput label="Full Name" placeholder="Enter your name" />
+                            <field.FormInput label="Full Name" required placeholder="Enter your name" />
                         </div>
                     )}
                 </form.AppField>
@@ -472,7 +620,7 @@ function ProfileTab() {
                 <form.AppField name="email">
                     {(field) => (
                         <div className="relative">
-                            <field.FormInput type="email" label="Email Address" placeholder="Enter your email" />
+                            <field.FormInput type="email" label="Email Address" required placeholder="Enter your email" />
                         </div>
                     )}
                 </form.AppField>
@@ -550,7 +698,7 @@ function SecurityTab() {
                 <div className="grid grid-cols-1 gap-4 max-w-md">
                     <form.AppField name="currentPassword">
                         {(field) => (
-                            <field.FormInput type="password" label={'Current Password'} placeholder={'Enter your current password'} />
+                            <field.FormInput type="password" label={'Current Password'} required placeholder={'Enter your current password'} />
                         )}
                     </form.AppField>
 
@@ -559,6 +707,7 @@ function SecurityTab() {
                             <field.FormInput
                                 type="password"
                                 label={'New Password'}
+                                required
                                 placeholder={'Enter a new password (min 8 characters)'}
                             />
                         )}
@@ -566,7 +715,7 @@ function SecurityTab() {
 
                     <form.AppField name="confirmPassword">
                         {(field) => (
-                            <field.FormInput type="password" label={'Confirm Password'} placeholder={'Re-enter your new password'} />
+                            <field.FormInput type="password" label={'Confirm Password'} required placeholder={'Re-enter your new password'} />
                         )}
                     </form.AppField>
                 </div>
