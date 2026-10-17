@@ -13,6 +13,8 @@ export type WorshipStatus = 'DRAFT' | 'PUBLISHED' | 'SCHEDULED'
 export type SongTranslationInput = {
     language: WorshipLanguage
     title?: string
+    /** Per-language artist name — falls back to the track's own artist when null. */
+    artist?: string | null
     description?: string | null
     bibleReference?: string | null
     /** Per-language audio file — falls back to the track's own audioUrl when null. */

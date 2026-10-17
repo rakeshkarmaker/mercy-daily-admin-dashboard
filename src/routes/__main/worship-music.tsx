@@ -83,7 +83,12 @@ function WorshipMusicPage() {
                 song.bibleReference ?? '',
                 song.description ?? '',
                 song.playlist?.title ?? '',
-                ...song.translations.flatMap((t) => [t.title, t.bibleReference ?? '', t.description ?? '']),
+                ...song.translations.flatMap((t) => [
+                    t.title,
+                    t.artist ?? '',
+                    t.bibleReference ?? '',
+                    t.description ?? '',
+                ]),
             ].some((value) => value.toLowerCase().includes(query)),
         )
     }, [data?.data, searchQuery])

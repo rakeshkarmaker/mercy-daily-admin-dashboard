@@ -1,0 +1,10 @@
+<IfModule mod_rewrite.c>
+    RewriteEngine On
+    RewriteBase /
+    # Don't rewrite real files/dirs (assets, images, etc.)
+    RewriteRule ^index\.html$ - [L]
+    RewriteCond %{REQUEST_FILENAME} !-f
+    RewriteCond %{REQUEST_FILENAME} !-d
+    # Everything else (e.g. /signin) serves the SPA entry point
+    RewriteRule . /index.html [L]
+</IfModule>

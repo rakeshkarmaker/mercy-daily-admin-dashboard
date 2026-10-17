@@ -89,9 +89,16 @@ export interface WorshipMusicUIProps {
     onDeletePlaylist: (id: string) => Promise<void>
 }
 
-/** Per-language content: the fields a translator actually rewrites (audio and cover included — each language carries its own recording and cover art). */
+/**
+ * Per-language content: the fields a translator actually rewrites (artist,
+ * audio and cover included — each language credits its own artist and can
+ * carry its own recording and cover art). Category (playlist) and duration
+ * stay shared and live in the track form instead.
+ */
 type LanguageFormState = {
     title: string
+    /** Songs only — empty falls back to the track's base artist. */
+    artist?: string
     description: string
     bibleReference: string
     /** Optional per-language overrides — undefined on playlists, '' on songs. */
@@ -103,6 +110,7 @@ type LanguageForms = Record<ContentLanguage, LanguageFormState>
 
 const emptyLanguageForm = (): LanguageFormState => ({
     title: '',
+    artist: '',
     description: '',
     bibleReference: '',
     audioUrl: '',
@@ -127,8 +135,8 @@ function resolveBase(forms: LanguageForms, storedBase?: ContentLanguage): Conten
     return ORDERED_LANGUAGES.find((l) => forms[l].title.trim())
 }
 
+/** Shared (non-translatable) song fields — title/artist/audio/cover live in the language tabs. */
 type SongFormState = {
-    artist: string
     /** Duration in decimal minutes (e.g. 4.5). Sent as whole seconds. */
     durationMinutes: string
     playlistId: string
@@ -137,7 +145,6 @@ type SongFormState = {
 }
 
 const emptySongForm: SongFormState = {
-    artist: 'Mercy Daily Worship',
     durationMinutes: '',
     playlistId: '',
     status: 'PUBLISHED',
@@ -161,6 +168,7 @@ const songLanguageForms = (song: WorshipSong): LanguageForms => {
     const base = storedSongBase(song)
     forms[base] = {
         title: song.title,
+        artist: song.artist,
         description: song.description ?? '',
         bibleReference: song.bibleReference ?? '',
         audioUrl: song.audioUrl ?? '',
@@ -170,6 +178,7 @@ const songLanguageForms = (song: WorshipSong): LanguageForms => {
         if (t.language === base) continue
         forms[t.language] = {
             title: t.title,
+            artist: t.artist ?? '',
             description: t.description ?? '',
             bibleReference: t.bibleReference ?? '',
             audioUrl: t.audioUrl ?? '',
@@ -196,11 +205,14 @@ function toSongTranslations(
     for (const language of ['en', 'esp', 'por'] as const) {
         if (language === baseLanguage) continue
         const form = forms[language]
-        const hasOverrides = Boolean(form.audioUrl?.trim() || form.coverUrl?.trim())
+        const hasOverrides = Boolean(
+            form.artist?.trim() || form.audioUrl?.trim() || form.coverUrl?.trim(),
+        )
         if (form.title.trim() || hasOverrides) {
             items.push({
                 language,
                 title: form.title.trim() || baseTitle,
+                artist: form.artist?.trim() || null,
                 description: form.description.trim() || null,
                 bibleReference: form.bibleReference.trim() || null,
                 audioUrl: form.audioUrl?.trim() || null,
@@ -299,6 +311,7 @@ function LanguageTabs({
     field2Label = 'Bible Reference',
     field3Label = 'Description',
     showAudioField = false,
+    showArtistField = false,
     onChange,
     onFormChange,
 }: {
@@ -306,6 +319,8 @@ function LanguageTabs({
     forms: LanguageForms
     field2Label?: string | null
     field3Label?: string
+    /** Songs credit their own artist per language; playlists have none. */
+    showArtistField?: boolean
     /** Songs carry their own recording per language; playlists have none. */
     showAudioField?: boolean
     onChange: (language: ContentLanguage) => void
@@ -341,6 +356,20 @@ function LanguageTabs({
                                     aria-label={`Title (${language.label})`}
                                 />
                             </div>
+                            {showArtistField && (
+                                <div className="grid gap-1.5">
+                                    <Label className="text-xs font-medium">Author / Artist</Label>
+                                    <Input
+                                        value={form.artist ?? ''}
+                                        onChange={(e) => set('artist', e.target.value)}
+                                        placeholder="e.g. Bethel Music"
+                                        aria-label={`Author / Artist (${language.label})`}
+                                    />
+                                    <p className="text-[11px] text-muted-foreground">
+                                        Each language credits its own artist — empty falls back to the track&apos;s base artist.
+                                    </p>
+                                </div>
+                            )}
                             {field2Label !== null && (
                                 <div className="grid gap-1.5">
                                     <Label className="text-xs font-medium">{field2Label}</Label>
@@ -458,7 +487,12 @@ export function WorshipMusicUI({
                 s.bibleReference ?? '',
                 s.description ?? '',
                 s.playlist?.title ?? playlistTitleById.get(s.playlist?.id ?? '') ?? '',
-                ...s.translations.flatMap((t) => [t.title, t.bibleReference ?? '', t.description ?? '']),
+                ...s.translations.flatMap((t) => [
+                    t.title,
+                    t.artist ?? '',
+                    t.bibleReference ?? '',
+                    t.description ?? '',
+                ]),
             ].some((value) => value.toLowerCase().includes(q)),
         )
     }, [songs, playlists, searchQuery])
@@ -532,7 +566,6 @@ export function WorshipMusicUI({
         const base = storedSongBase(song)
         setEditingSong(song)
         setSongForm({
-            artist: song.artist,
             durationMinutes: secondsToMinutes(song.durationSeconds),
             playlistId: song.playlist?.id ?? '',
             status: song.status,
@@ -559,7 +592,11 @@ export function WorshipMusicUI({
         const input: SongInput = {
             language: baseLang,
             title: baseTitle,
-            artist: songForm.artist.trim() || undefined,
+            // Base-language artist lives in the top-level field; the other
+            // languages carry their own artist in `translations`. Blank falls
+            // back to the column default so a cleared edit does not leave an
+            // empty credit.
+            artist: base.artist?.trim() || 'Mercy Daily Worship',
             durationSeconds: minutesToSeconds(songForm.durationMinutes),
             audioUrl: base.audioUrl?.trim() || null,
             coverUrl: base.coverUrl?.trim() || null,
@@ -942,7 +979,7 @@ export function WorshipMusicUI({
                     <DialogHeader>
                         <DialogTitle>{editingSong ? 'Edit Worship Music' : 'Add New Worship Music'}</DialogTitle>
                         <DialogDescription>
-                            Only Title and the audio file link are required — fill any language tab, it becomes the track&apos;s primary language. Other tabs fall back to it per field.
+                            Only Title and the audio file link are required — fill any language tab, it becomes the track&apos;s primary language. Author / Artist is per language; duration and category are shared.
                         </DialogDescription>
                     </DialogHeader>
 
@@ -952,6 +989,7 @@ export function WorshipMusicUI({
                             <LanguageTabs
                                 value={songLang}
                                 forms={songLangForms}
+                                showArtistField
                                 showAudioField
                                 onChange={setSongLang}
                                 onFormChange={(lang, form) =>
@@ -967,14 +1005,6 @@ export function WorshipMusicUI({
                             </h4>
                             <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
                                 <div className="grid gap-1.5">
-                                    <Label className="text-xs font-medium">Author / Artist</Label>
-                                    <Input
-                                        value={songForm.artist}
-                                        onChange={(e) => setSongForm({ ...songForm, artist: e.target.value })}
-                                        placeholder="e.g. Bethel Music"
-                                    />
-                                </div>
-                                <div className="grid gap-1.5">
                                     <Label className="text-xs font-medium">Duration (minutes)</Label>
                                     <Input
                                         type="number"
@@ -985,15 +1015,18 @@ export function WorshipMusicUI({
                                         placeholder="e.g. 4.5"
                                     />
                                 </div>
+                                <div className="grid gap-1.5">
+                                    <Label className="text-xs font-medium">Playlist (the category)</Label>
+                                    <SearchablePlaylistSelect
+                                        playlists={playlists}
+                                        value={songForm.playlistId}
+                                        onChange={(playlistId) => setSongForm({ ...songForm, playlistId })}
+                                    />
+                                </div>
                             </div>
-                            <div className="grid gap-1.5">
-                                <Label className="text-xs font-medium">Playlist (the category)</Label>
-                                <SearchablePlaylistSelect
-                                    playlists={playlists}
-                                    value={songForm.playlistId}
-                                    onChange={(playlistId) => setSongForm({ ...songForm, playlistId })}
-                                />
-                            </div>
+                            <p className="text-[11px] text-muted-foreground">
+                                Duration and category are shared by every language — the artist is credited per language tab above.
+                            </p>
                         </div>
 
                         {/* Publishing */}
