@@ -5,7 +5,7 @@ import { ReportsUI } from '@/components/features/reports/reports-ui'
 import { listReports, toUiReport, updateReportStatus, removeContentAndResolve } from '@/api/reports'
 import { toast } from 'sonner'
 import type { FilterState } from '@/components/shared/filter-builder'
-import type { ReportStatus } from '@/api/reports'
+import type { ReportStatus, ReportTargetType } from '@/api/reports'
 import { useMemo, useState } from 'react'
 import * as z from 'zod'
 
@@ -85,7 +85,7 @@ function ReportsPage() {
         queryClient.invalidateQueries({ queryKey: ['reports'] })
     }
 
-    const handleRemoveContent = async (report: { id: string; targetType: 'POST' | 'COMMENT'; targetId: string }) => {
+    const handleRemoveContent = async (report: { id: string; targetType: ReportTargetType; targetId: string }) => {
         try {
             await removeContentAndResolve(report.id, report.targetType, report.targetId)
             toast.success('Content removed and report resolved')

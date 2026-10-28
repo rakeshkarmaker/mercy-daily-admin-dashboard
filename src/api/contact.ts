@@ -27,6 +27,7 @@ export async function listContactMessages(params: {
     page?: number
     limit?: number
     status?: ContactMessageStatus
+    search?: string
 }): Promise<ContactMessageList> {
     return request(`/contact${toQuery(params)}`)
 }
@@ -41,4 +42,9 @@ export async function updateContactStatus(id: string, status: ContactMessageStat
         method: 'PATCH',
         body: JSON.stringify({ status }),
     })
+}
+
+/** Permanently remove a message from the inbox (admin). */
+export async function deleteContactMessage(id: string): Promise<void> {
+    await request(`/contact/${id}`, { method: 'DELETE' })
 }

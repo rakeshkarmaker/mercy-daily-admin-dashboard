@@ -1,5 +1,5 @@
 export type ReportStatus = 'PENDING' | 'REVIEWED' | 'RESOLVED' | 'DISMISSED'
-export type ReportTargetType = 'POST' | 'COMMENT'
+export type ReportTargetType = 'POST' | 'COMMENT' | 'GROUP_MESSAGE'
 export type ReportReason =
     | 'SPAM'
     | 'HARASSMENT'
@@ -25,7 +25,7 @@ export type ApiReport = {
 export type Report = {
     id: string
     targetType: ReportTargetType
-    /** Id of the reported post/comment — needed for content actions (remove/keep). */
+    /** Id of the reported post/comment/group message — needed for content actions (remove/keep). */
     targetId: string
     reason: ReportReason
     status: ReportStatus

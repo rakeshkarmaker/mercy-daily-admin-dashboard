@@ -21,6 +21,7 @@ import { Route as _mainBibleVersionsRouteImport } from './routes/__main/bible-ve
 import { Route as _mainChurchesRouteImport } from './routes/__main/churches'
 import { Route as _mainCommunityRouteImport } from './routes/__main/community'
 import { Route as _mainDailyContentRouteImport } from './routes/__main/daily-content'
+import { Route as _mainGroupsRouteImport } from './routes/__main/groups'
 import { Route as _mainNotificationsRouteImport } from './routes/__main/notifications'
 import { Route as _mainPaymentsRouteImport } from './routes/__main/payments'
 import { Route as _mainPrayerManagementRouteImport } from './routes/__main/prayer-management'
@@ -29,8 +30,10 @@ import { Route as _mainReportsRouteImport } from './routes/__main/reports'
 import { Route as _mainSermonsRouteImport } from './routes/__main/sermons'
 import { Route as _mainSettingsRouteImport } from './routes/__main/settings'
 import { Route as _mainSubscriptionsRouteImport } from './routes/__main/subscriptions'
+import { Route as _mainSupportRouteImport } from './routes/__main/support'
 import { Route as _mainUserManagementRouteImport } from './routes/__main/user-management'
 import { Route as _mainWorshipMusicRouteImport } from './routes/__main/worship-music'
+import { Route as _mainGroupsGroupIdRouteImport } from './routes/__main/groups.$groupId'
 
 const _authRouteRoute = _authRouteRouteImport.update({
   id: '/__auth',
@@ -90,6 +93,11 @@ const _mainDailyContentRoute = _mainDailyContentRouteImport.update({
   path: '/daily-content',
   getParentRoute: () => _mainRouteRoute,
 } as any)
+const _mainGroupsRoute = _mainGroupsRouteImport.update({
+  id: '/groups',
+  path: '/groups',
+  getParentRoute: () => _mainRouteRoute,
+} as any)
 const _mainNotificationsRoute = _mainNotificationsRouteImport.update({
   id: '/notifications',
   path: '/notifications',
@@ -130,6 +138,11 @@ const _mainSubscriptionsRoute = _mainSubscriptionsRouteImport.update({
   path: '/subscriptions',
   getParentRoute: () => _mainRouteRoute,
 } as any)
+const _mainSupportRoute = _mainSupportRouteImport.update({
+  id: '/support',
+  path: '/support',
+  getParentRoute: () => _mainRouteRoute,
+} as any)
 const _mainUserManagementRoute = _mainUserManagementRouteImport.update({
   id: '/user-management',
   path: '/user-management',
@@ -139,6 +152,11 @@ const _mainWorshipMusicRoute = _mainWorshipMusicRouteImport.update({
   id: '/worship-music',
   path: '/worship-music',
   getParentRoute: () => _mainRouteRoute,
+} as any)
+const _mainGroupsGroupIdRoute = _mainGroupsGroupIdRouteImport.update({
+  id: '/$groupId',
+  path: '/$groupId',
+  getParentRoute: () => _mainGroupsRoute,
 } as any)
 
 export interface FileRoutesByFullPath {
@@ -152,6 +170,7 @@ export interface FileRoutesByFullPath {
   '/churches': typeof _mainChurchesRoute
   '/community': typeof _mainCommunityRoute
   '/daily-content': typeof _mainDailyContentRoute
+  '/groups': typeof _mainGroupsRouteWithChildren
   '/notifications': typeof _mainNotificationsRoute
   '/payments': typeof _mainPaymentsRoute
   '/prayer-management': typeof _mainPrayerManagementRoute
@@ -160,8 +179,10 @@ export interface FileRoutesByFullPath {
   '/sermons': typeof _mainSermonsRoute
   '/settings': typeof _mainSettingsRoute
   '/subscriptions': typeof _mainSubscriptionsRoute
+  '/support': typeof _mainSupportRoute
   '/user-management': typeof _mainUserManagementRoute
   '/worship-music': typeof _mainWorshipMusicRoute
+  '/groups/$groupId': typeof _mainGroupsGroupIdRoute
 }
 export interface FileRoutesByTo {
   '/': typeof _mainIndexRoute
@@ -174,6 +195,7 @@ export interface FileRoutesByTo {
   '/churches': typeof _mainChurchesRoute
   '/community': typeof _mainCommunityRoute
   '/daily-content': typeof _mainDailyContentRoute
+  '/groups': typeof _mainGroupsRouteWithChildren
   '/notifications': typeof _mainNotificationsRoute
   '/payments': typeof _mainPaymentsRoute
   '/prayer-management': typeof _mainPrayerManagementRoute
@@ -182,8 +204,10 @@ export interface FileRoutesByTo {
   '/sermons': typeof _mainSermonsRoute
   '/settings': typeof _mainSettingsRoute
   '/subscriptions': typeof _mainSubscriptionsRoute
+  '/support': typeof _mainSupportRoute
   '/user-management': typeof _mainUserManagementRoute
   '/worship-music': typeof _mainWorshipMusicRoute
+  '/groups/$groupId': typeof _mainGroupsGroupIdRoute
 }
 export interface FileRoutesById {
   __root__: typeof rootRouteImport
@@ -198,6 +222,7 @@ export interface FileRoutesById {
   '/__main/churches': typeof _mainChurchesRoute
   '/__main/community': typeof _mainCommunityRoute
   '/__main/daily-content': typeof _mainDailyContentRoute
+  '/__main/groups': typeof _mainGroupsRouteWithChildren
   '/__main/notifications': typeof _mainNotificationsRoute
   '/__main/payments': typeof _mainPaymentsRoute
   '/__main/prayer-management': typeof _mainPrayerManagementRoute
@@ -206,9 +231,11 @@ export interface FileRoutesById {
   '/__main/sermons': typeof _mainSermonsRoute
   '/__main/settings': typeof _mainSettingsRoute
   '/__main/subscriptions': typeof _mainSubscriptionsRoute
+  '/__main/support': typeof _mainSupportRoute
   '/__main/user-management': typeof _mainUserManagementRoute
   '/__main/worship-music': typeof _mainWorshipMusicRoute
   '/__main/': typeof _mainIndexRoute
+  '/__main/groups/$groupId': typeof _mainGroupsGroupIdRoute
 }
 export interface FileRouteTypes {
   fileRoutesByFullPath: FileRoutesByFullPath
@@ -223,6 +250,7 @@ export interface FileRouteTypes {
     | '/churches'
     | '/community'
     | '/daily-content'
+    | '/groups'
     | '/notifications'
     | '/payments'
     | '/prayer-management'
@@ -231,8 +259,10 @@ export interface FileRouteTypes {
     | '/sermons'
     | '/settings'
     | '/subscriptions'
+    | '/support'
     | '/user-management'
     | '/worship-music'
+    | '/groups/$groupId'
   fileRoutesByTo: FileRoutesByTo
   to:
     | '/'
@@ -245,6 +275,7 @@ export interface FileRouteTypes {
     | '/churches'
     | '/community'
     | '/daily-content'
+    | '/groups'
     | '/notifications'
     | '/payments'
     | '/prayer-management'
@@ -253,8 +284,10 @@ export interface FileRouteTypes {
     | '/sermons'
     | '/settings'
     | '/subscriptions'
+    | '/support'
     | '/user-management'
     | '/worship-music'
+    | '/groups/$groupId'
   id:
     | '__root__'
     | '/__auth'
@@ -268,6 +301,7 @@ export interface FileRouteTypes {
     | '/__main/churches'
     | '/__main/community'
     | '/__main/daily-content'
+    | '/__main/groups'
     | '/__main/notifications'
     | '/__main/payments'
     | '/__main/prayer-management'
@@ -276,9 +310,11 @@ export interface FileRouteTypes {
     | '/__main/sermons'
     | '/__main/settings'
     | '/__main/subscriptions'
+    | '/__main/support'
     | '/__main/user-management'
     | '/__main/worship-music'
     | '/__main/'
+    | '/__main/groups/$groupId'
   fileRoutesById: FileRoutesById
 }
 export interface RootRouteChildren {
@@ -372,6 +408,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof _mainDailyContentRouteImport
       parentRoute: typeof _mainRouteRoute
     }
+    '/__main/groups': {
+      id: '/__main/groups'
+      path: '/groups'
+      fullPath: '/groups'
+      preLoaderRoute: typeof _mainGroupsRouteImport
+      parentRoute: typeof _mainRouteRoute
+    }
     '/__main/notifications': {
       id: '/__main/notifications'
       path: '/notifications'
@@ -428,6 +471,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof _mainSubscriptionsRouteImport
       parentRoute: typeof _mainRouteRoute
     }
+    '/__main/support': {
+      id: '/__main/support'
+      path: '/support'
+      fullPath: '/support'
+      preLoaderRoute: typeof _mainSupportRouteImport
+      parentRoute: typeof _mainRouteRoute
+    }
     '/__main/user-management': {
       id: '/__main/user-management'
       path: '/user-management'
@@ -441,6 +491,13 @@ declare module '@tanstack/react-router' {
       fullPath: '/worship-music'
       preLoaderRoute: typeof _mainWorshipMusicRouteImport
       parentRoute: typeof _mainRouteRoute
+    }
+    '/__main/groups/$groupId': {
+      id: '/__main/groups/$groupId'
+      path: '/$groupId'
+      fullPath: '/groups/$groupId'
+      preLoaderRoute: typeof _mainGroupsGroupIdRouteImport
+      parentRoute: typeof _mainGroupsRoute
     }
   }
 }
@@ -465,11 +522,24 @@ const _authRouteRouteWithChildren = _authRouteRoute._addFileChildren(
   _authRouteRouteChildren,
 )
 
+interface _mainGroupsRouteChildren {
+  _mainGroupsGroupIdRoute: typeof _mainGroupsGroupIdRoute
+}
+
+const _mainGroupsRouteChildren: _mainGroupsRouteChildren = {
+  _mainGroupsGroupIdRoute: _mainGroupsGroupIdRoute,
+}
+
+const _mainGroupsRouteWithChildren = _mainGroupsRoute._addFileChildren(
+  _mainGroupsRouteChildren,
+)
+
 interface _mainRouteRouteChildren {
   _mainBibleVersionsRoute: typeof _mainBibleVersionsRoute
   _mainChurchesRoute: typeof _mainChurchesRoute
   _mainCommunityRoute: typeof _mainCommunityRoute
   _mainDailyContentRoute: typeof _mainDailyContentRoute
+  _mainGroupsRoute: typeof _mainGroupsRouteWithChildren
   _mainNotificationsRoute: typeof _mainNotificationsRoute
   _mainPaymentsRoute: typeof _mainPaymentsRoute
   _mainPrayerManagementRoute: typeof _mainPrayerManagementRoute
@@ -478,6 +548,7 @@ interface _mainRouteRouteChildren {
   _mainSermonsRoute: typeof _mainSermonsRoute
   _mainSettingsRoute: typeof _mainSettingsRoute
   _mainSubscriptionsRoute: typeof _mainSubscriptionsRoute
+  _mainSupportRoute: typeof _mainSupportRoute
   _mainUserManagementRoute: typeof _mainUserManagementRoute
   _mainWorshipMusicRoute: typeof _mainWorshipMusicRoute
   _mainIndexRoute: typeof _mainIndexRoute
@@ -488,6 +559,7 @@ const _mainRouteRouteChildren: _mainRouteRouteChildren = {
   _mainChurchesRoute: _mainChurchesRoute,
   _mainCommunityRoute: _mainCommunityRoute,
   _mainDailyContentRoute: _mainDailyContentRoute,
+  _mainGroupsRoute: _mainGroupsRouteWithChildren,
   _mainNotificationsRoute: _mainNotificationsRoute,
   _mainPaymentsRoute: _mainPaymentsRoute,
   _mainPrayerManagementRoute: _mainPrayerManagementRoute,
@@ -496,6 +568,7 @@ const _mainRouteRouteChildren: _mainRouteRouteChildren = {
   _mainSermonsRoute: _mainSermonsRoute,
   _mainSettingsRoute: _mainSettingsRoute,
   _mainSubscriptionsRoute: _mainSubscriptionsRoute,
+  _mainSupportRoute: _mainSupportRoute,
   _mainUserManagementRoute: _mainUserManagementRoute,
   _mainWorshipMusicRoute: _mainWorshipMusicRoute,
   _mainIndexRoute: _mainIndexRoute,

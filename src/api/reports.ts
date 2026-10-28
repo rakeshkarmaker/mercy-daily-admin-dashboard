@@ -3,6 +3,7 @@ import type {
     ApiReport,
     Report,
     ReportStatus,
+    ReportTargetType,
 } from '@/types/reports'
 
 export type { ApiReport, Report, ReportReason, ReportStatus, ReportTargetType } from '@/types/reports'
@@ -40,10 +41,17 @@ export async function updateReportStatus(id: string, status: ReportStatus): Prom
     })
 }
 
+/** Path that soft-deletes each reportable target type (admin-only). */
+function targetDeletePath(targetType: ReportTargetType, targetId: string): string {
+    if (targetType === 'POST') return `/posts/${targetId}`
+    if (targetType === 'COMMENT') return `/posts/comments/${targetId}`
+    // Group chat messages are moderated through the admin group surface.
+    return `/admin/groups/messages/${targetId}`
+}
+
 /** Take down the reported content (admin soft-delete, recoverable). */
-export async function removeReportedContent(targetType: 'POST' | 'COMMENT', targetId: string): Promise<void> {
-    const path = targetType === 'POST' ? `/posts/${targetId}` : `/posts/comments/${targetId}`
-    await request(path, { method: 'DELETE' })
+export async function removeReportedContent(targetType: ReportTargetType, targetId: string): Promise<void> {
+    await request(targetDeletePath(targetType, targetId), { method: 'DELETE' })
 }
 
 /**
@@ -53,7 +61,7 @@ export async function removeReportedContent(targetType: 'POST' | 'COMMENT', targ
  */
 export async function removeContentAndResolve(
     reportId: string,
-    targetType: 'POST' | 'COMMENT',
+    targetType: ReportTargetType,
     targetId: string,
 ): Promise<void> {
     try {

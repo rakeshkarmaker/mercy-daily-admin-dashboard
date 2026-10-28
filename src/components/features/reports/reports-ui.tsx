@@ -8,8 +8,8 @@ import type { FilterState, FilterOption } from '@/components/shared/filter-build
 import { TrashConfirm } from '@/components/shared/trash-confirm'
 import { Badge } from '@/components/ui/badge'
 import { Tabs, TabsList, TabsTrigger } from '@/components/ui/tabs'
-import { Calendar, Check, FileText, Flag, Eye, MessageSquareWarning, Trash2 } from 'lucide-react'
-import type { Report, ReportStatus } from '@/api/reports'
+import { Calendar, Check, FileText, Flag, Eye, MessagesSquare, MessageSquareWarning, Trash2 } from 'lucide-react'
+import type { Report, ReportStatus, ReportTargetType } from '@/api/reports'
 import { Button } from '@/components/ui/button'
 import {
     Dialog,
@@ -45,6 +45,30 @@ const STATUS_TABS: { value: StatusTab; label: string }[] = [
     { value: 'RESOLVED', label: 'Resolved' },
     { value: 'DISMISSED', label: 'Dismissed' },
 ]
+
+/** Human label per reportable target — exhaustive so new types fail loudly. */
+function targetLabel(targetType: ReportTargetType): string {
+    switch (targetType) {
+        case 'POST':
+            return 'post'
+        case 'COMMENT':
+            return 'comment'
+        case 'GROUP_MESSAGE':
+            return 'group message'
+    }
+}
+
+/** Icon per reportable target (group messages get their own chat glyph). */
+function TargetIcon({ targetType }: { targetType: ReportTargetType }) {
+    switch (targetType) {
+        case 'POST':
+            return <FileText className="size-4" />
+        case 'COMMENT':
+            return <MessageSquareWarning className="size-4" />
+        case 'GROUP_MESSAGE':
+            return <MessagesSquare className="size-4" />
+    }
+}
 
 /** Short relative time for table cells (full date stays in the title tooltip). */
 function timeAgo(iso: string): string {
@@ -151,11 +175,7 @@ export function ReportsUI({
                 render: (row) => (
                     <div className="flex min-w-0 max-w-90 items-start gap-2.5">
                         <span className="mt-0.5 shrink-0 rounded-lg bg-warning/10 p-1.5 text-warning">
-                            {row.targetType === 'POST' ? (
-                                <FileText className="size-4" />
-                            ) : (
-                                <MessageSquareWarning className="size-4" />
-                            )}
+                            <TargetIcon targetType={row.targetType} />
                         </span>
                         <span className="flex min-w-0 flex-col">
                             <span className="truncate font-medium text-foreground">
@@ -165,7 +185,7 @@ export function ReportsUI({
                             </span>
                             <span className="mt-0.5 flex items-center gap-1.5 text-xs text-muted-foreground">
                                 <Badge variant="outline" className="h-4 px-1 text-[10px] font-semibold uppercase">
-                                    {row.targetType.toLowerCase()}
+                                    {targetLabel(row.targetType)}
                                 </Badge>
                                 <span className="inline-flex items-center gap-1">
                                     <span
@@ -240,7 +260,7 @@ export function ReportsUI({
                                     onClick={() => setRemoving(row)}
                                     className="p-2 rounded-full text-destructive hover:bg-destructive/10 transition-colors"
                                     aria-label="Remove reported content"
-                                    title={`Remove this ${row.targetType.toLowerCase()} and resolve`}
+                                    title={`Remove this ${targetLabel(row.targetType)} and resolve`}
                                 >
                                     <Trash2 className="size-4" />
                                 </button>
@@ -275,7 +295,7 @@ export function ReportsUI({
                 <div className="flex flex-col lg:flex-row lg:items-center justify-between gap-4 pb-4 border-b border-border/50">
                     <PageHeader
                         title="Reports"
-                        description="Review reported posts and comments, and track moderation progress."
+                        description="Review reported posts, comments and group messages, and track moderation progress."
                     />
                     <div className="flex items-center flex-wrap gap-3">
                         <SearchInput
@@ -336,7 +356,7 @@ export function ReportsUI({
                                     </div>
                                     <div className="min-w-0 flex-1 space-y-1.5">
                                         <DialogTitle className="text-lg capitalize">
-                                            {viewing.targetType.toLowerCase()} report
+                                            {targetLabel(viewing.targetType)} report
                                         </DialogTitle>
                                         <DialogDescription>
                                             Reported by {viewing.reporterName} · {timeAgo(viewing.createdAt)}
@@ -351,7 +371,7 @@ export function ReportsUI({
                                                 {viewing.reason.replaceAll('_', ' ').toLowerCase()}
                                             </Badge>
                                             <Badge variant="outline" className="text-[11px] uppercase">
-                                                {viewing.targetType.toLowerCase()}
+                                                {targetLabel(viewing.targetType)}
                                             </Badge>
                                         </div>
                                     </div>
@@ -383,7 +403,7 @@ export function ReportsUI({
                             {(viewing.status === 'PENDING' || viewing.status === 'REVIEWED') && (
                                 <section className="space-y-2 rounded-xl border border-destructive/20 bg-destructive/5 p-4">
                                     <p className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">
-                                        Moderate this {viewing.targetType.toLowerCase()}
+                                        Moderate this {targetLabel(viewing.targetType)}
                                     </p>
                                     {viewing.targetDeleted ? (
                                         <p className="mt-1 text-sm text-muted-foreground">
@@ -414,7 +434,7 @@ export function ReportsUI({
                                             }}
                                         >
                                             <Trash2 className="mr-1.5 size-3.5" />
-                                            Remove {viewing.targetType.toLowerCase()} & resolve
+                                            Remove {targetLabel(viewing.targetType)} & resolve
                                         </Button>
                                         <Button
                                             size="sm"
@@ -485,7 +505,7 @@ export function ReportsUI({
                 onOpenChange={(open) => !open && !removingBusy && setRemoving(null)}
                 title="Remove reported content?"
                 description="This hides the reported content from all feeds and resolves the report:"
-                name={removing ? `this ${removing.targetType.toLowerCase()} (${removing.reason.replaceAll('_', ' ').toLowerCase()})` : 'this content'}
+                name={removing ? `this ${targetLabel(removing.targetType)} (${removing.reason.replaceAll('_', ' ').toLowerCase()})` : 'this content'}
                 reversibilityNote="This hides it from all feeds (soft-delete, recoverable)."
                 onConfirm={async () => {
                     if (!removing) return

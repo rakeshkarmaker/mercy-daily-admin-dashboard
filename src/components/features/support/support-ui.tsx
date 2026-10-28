@@ -2,10 +2,13 @@ import { useState } from 'react'
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
 import { Dialog, DialogContent, DialogTitle } from '@/components/ui/dialog'
-import { DataTable, type DataTableColumn } from '@/components/shared/data-table'
+import { DataTable } from '@/components/shared/data-table'
+import type { DataTableColumn } from '@/components/shared/data-table'
 import { PageHeader } from '@/components/shared/page-header'
+import { SearchInput } from '@/components/shared/search-input'
 import { StatCardsGrid } from '@/components/shared/stat-card'
-import { Inbox, MailOpen, Eye } from 'lucide-react'
+import { TrashConfirm } from '@/components/shared/trash-confirm'
+import { Inbox, MailOpen, Eye, Trash2 } from 'lucide-react'
 import type { ContactMessage, ContactMessageStatus } from '@/api/contact'
 import { cn } from '@/lib/utils'
 
@@ -39,10 +42,15 @@ type SupportUIProps = {
     loading: boolean
     page: number
     limit: number
+    searchQuery: string
+    onSearchChange: (value: string) => void
     statusFilter: ContactMessageStatus | 'ALL'
     onStatusFilterChange: (status: ContactMessageStatus | 'ALL') => void
     onStatusChange: (id: string, status: ContactMessageStatus) => void
     statusPending: boolean
+    /** Permanently removes the message; resolves once the API call settles. */
+    onDelete: (message: ContactMessage) => Promise<void>
+    deletePending?: boolean
     onReset: () => void
 }
 
@@ -53,13 +61,18 @@ export function SupportUI({
     loading,
     page,
     limit,
+    searchQuery,
+    onSearchChange,
     statusFilter,
     onStatusFilterChange,
     onStatusChange,
     statusPending,
+    onDelete,
+    deletePending = false,
     onReset,
 }: SupportUIProps) {
     const [selected, setSelected] = useState<ContactMessage | null>(null)
+    const [deleting, setDeleting] = useState<ContactMessage | null>(null)
 
     const columns: DataTableColumn<ContactMessage>[] = [
         {
@@ -96,10 +109,22 @@ export function SupportUI({
             header: 'Actions',
             className: 'text-right',
             render: (row) => (
-                <Button variant="ghost" size="sm" onClick={() => setSelected(row)}>
-                    <Eye className="size-4 mr-1.5" />
-                    View
-                </Button>
+                <div className="flex items-center justify-end gap-1">
+                    <Button variant="ghost" size="sm" onClick={() => setSelected(row)}>
+                        <Eye className="size-4 mr-1.5" />
+                        View
+                    </Button>
+                    <Button
+                        variant="ghost"
+                        size="sm"
+                        className="text-destructive hover:bg-destructive/10 hover:text-destructive"
+                        onClick={() => setDeleting(row)}
+                        aria-label="Delete message"
+                        title="Delete message"
+                    >
+                        <Trash2 className="size-4" />
+                    </Button>
+                </div>
             ),
         },
     ]
@@ -116,6 +141,12 @@ export function SupportUI({
             />
 
             <div className="flex flex-wrap items-center gap-2">
+                <SearchInput
+                    value={searchQuery}
+                    onValueChange={onSearchChange}
+                    placeholder="Search sender, email, subject..."
+                    className="h-9 w-full rounded-full border-border bg-card shadow-sm sm:w-80"
+                />
                 {STATUS_FILTERS.map((f) => (
                     <Button
                         key={f.id}
@@ -209,6 +240,19 @@ export function SupportUI({
                     )}
                 </DialogContent>
             </Dialog>
+
+            <TrashConfirm
+                open={deleting !== null}
+                onOpenChange={(open) => !open && setDeleting(null)}
+                title="Delete message?"
+                description="Permanently delete the support message from"
+                name={deleting ? `${deleting.name} (${deleting.email})` : 'this sender'}
+                reversibilityNote="The message cannot be recovered."
+                onConfirm={() => {
+                    if (!deleting || deletePending) return
+                    void onDelete(deleting).finally(() => setDeleting(null))
+                }}
+            />
         </div>
     )
 }
