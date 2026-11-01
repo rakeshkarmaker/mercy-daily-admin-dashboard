@@ -5,7 +5,7 @@ import { Separator } from '@/components/ui/separator'
 import { useMutation, useQueryClient, useQuery } from '@tanstack/react-query'
 import { createFileRoute, useNavigate, useRouter } from '@tanstack/react-router'
 import { request } from '@/api/base'
-import { SlidersHorizontal, User, ShieldCheck, ArrowLeft, FileText, FileSignature, Info, Mail, Sparkles, Loader2, X } from 'lucide-react'
+import { SlidersHorizontal, User, ShieldCheck, ArrowLeft, FileText, FileSignature, Info, Mail, Sparkles, Loader2, X, UserMinus } from 'lucide-react'
 import { useState, useEffect, useMemo } from 'react'
 import { toast } from 'sonner'
 import * as z from 'zod'
@@ -31,6 +31,7 @@ const TABS = [
     { id: 'profile', label: 'Profile', icon: User },
     { id: 'security', label: 'Security', icon: ShieldCheck },
     { id: 'privacy-policy', label: 'Privacy Policy', icon: FileText },
+    { id: 'account-delete-policy', label: 'Account Delete Policy', icon: UserMinus },
     { id: 'terms-and-conditions', label: 'Terms & Conditions', icon: FileSignature },
     { id: 'about-us', label: 'About Us', icon: Info },
     { id: 'contact-info', label: 'Contact Info', icon: Mail },
@@ -141,6 +142,13 @@ function RouteComponent() {
                             slug="privacy-policy"
                             title="Privacy Policy"
                             description="Manage the application's privacy policy."
+                        />
+                    )}
+                    {activeTab === 'account-delete-policy' && (
+                        <StaticPageTab
+                            slug="account-delete-policy"
+                            title="Account Delete Policy"
+                            description="Manage the application's account delete policy."
                         />
                     )}
                     {activeTab === 'terms-and-conditions' && (
