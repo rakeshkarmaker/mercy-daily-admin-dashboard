@@ -8,6 +8,7 @@ export type AvailableTranslation = {
     language: string
     textDirection: 'ltr' | 'rtl'
     numberOfBooks?: number
+    licenseUrl: string | null
 }
 
 export type AvailableTranslationsResponse = {

@@ -32,6 +32,7 @@ import {
     CheckCircle2,
     ChevronRight,
     CloudDownload,
+    ExternalLink,
     Globe,
     Languages,
     Layers,
@@ -96,6 +97,23 @@ export interface BibleVersionsUIProps {
 
 // ── Component ──────────────────────────────────────────────────────────────
 
+function LicenseLink({ url, label = 'License' }: { url?: string | null; label?: string }) {
+    if (!url) return null
+
+    return (
+        <a
+            href={url}
+            target="_blank"
+            rel="noopener noreferrer"
+            title={url}
+            className="inline-flex items-center gap-1 text-xs font-medium text-primary hover:underline"
+        >
+            <ExternalLink className="size-3" />
+            {label}
+        </a>
+    )
+}
+
 export function BibleVersionsUI({
     availableTranslations,
     syncedVersions,
@@ -156,6 +174,23 @@ export function BibleVersionsUI({
             new Set(availableTranslations.map((t) => t.language).filter(Boolean)),
         ).sort()
     }, [availableTranslations])
+
+    // License URLs come from the live HelloAO catalogue for unsynced
+    // translations and from the database for synced versions. Database values
+    // are applied last so they win when both are present.
+    const licenseUrlByCode = useMemo(() => {
+        const map = new Map<string, string>()
+        availableTranslations.forEach((t) => {
+            if (t.licenseUrl) map.set(t.id.toUpperCase(), t.licenseUrl)
+        })
+        syncedVersions.forEach((v) => {
+            if (v.licenseUrl) map.set(v.code.toUpperCase(), v.licenseUrl)
+        })
+        return map
+    }, [availableTranslations, syncedVersions])
+
+    const selectedLicenseUrl =
+        licenseUrlByCode.get(selectedVersionCode.toUpperCase()) ?? null
 
     // Map all 66 canonical books against synced books for selected version
     const canonicalBooksWithStatus = useMemo(() => {
@@ -291,6 +326,16 @@ export function BibleVersionsUI({
                     {row.language}
                 </Badge>
             ),
+        },
+        {
+            key: 'licenseUrl',
+            header: 'License',
+            render: (row) =>
+                row.licenseUrl ? (
+                    <LicenseLink url={row.licenseUrl} label="View license" />
+                ) : (
+                    <span className="text-xs text-muted-foreground">—</span>
+                ),
         },
         {
             key: 'status',
@@ -430,6 +475,10 @@ export function BibleVersionsUI({
                                 const syncedVersion = syncedVersions.find(
                                     (v) => v.code.toUpperCase() === t.id.toUpperCase(),
                                 )
+                                const licenseUrl =
+                                    syncedVersion?.licenseUrl ??
+                                    licenseUrlByCode.get(t.id.toUpperCase()) ??
+                                    null
 
                                 return (
                                     <Card
@@ -477,6 +526,15 @@ export function BibleVersionsUI({
                                             <CardDescription className="text-xs line-clamp-2">
                                                 {t.description}
                                             </CardDescription>
+
+                                            <div className="flex items-center justify-between text-[11px] text-muted-foreground">
+                                                <span>License</span>
+                                                {licenseUrl ? (
+                                                    <LicenseLink url={licenseUrl} label="View terms" />
+                                                ) : (
+                                                    <span className="text-muted-foreground/70">Not listed</span>
+                                                )}
+                                            </div>
 
                                             <div className="pt-2 border-t border-border/40 flex items-center justify-between">
                                                 {isSynced && syncedVersion ? (
@@ -618,6 +676,18 @@ export function BibleVersionsUI({
                                             <p className="text-xs text-muted-foreground">
                                                 Language: {v.language || 'English'}
                                             </p>
+                                            <div className="flex items-center justify-between gap-2 text-xs text-muted-foreground">
+                                                <span>License</span>
+                                                {licenseUrlByCode.get(v.code.toUpperCase()) ? (
+                                                    <LicenseLink
+                                                        url={licenseUrlByCode.get(v.code.toUpperCase())}
+                                                    />
+                                                ) : (
+                                                    <span className="text-[11px] text-muted-foreground/70">
+                                                        No license URL
+                                                    </span>
+                                                )}
+                                            </div>
                                         </div>
 
                                         <div className="pt-2 border-t border-border flex items-center justify-between">
@@ -707,6 +777,9 @@ export function BibleVersionsUI({
                                                 ))}
                                             </SelectContent>
                                         </Select>
+                                        {selectedLicenseUrl && (
+                                            <LicenseLink url={selectedLicenseUrl} />
+                                        )}
                                     </div>
 
                                     {/* Testament Tabs Matching Mobile (Screen 1) with Live Counts */}
@@ -1160,9 +1233,12 @@ export function BibleVersionsUI({
                                 <ArrowLeft className="size-3.5" />
                                 Back to Chapters
                             </Button>
-                            <Badge variant="secondary" className="font-mono text-xs">
-                                {selectedChapterDetail?.version.code}
-                            </Badge>
+                            <div className="flex items-center gap-2">
+                                {selectedLicenseUrl && <LicenseLink url={selectedLicenseUrl} />}
+                                <Badge variant="secondary" className="font-mono text-xs">
+                                    {selectedChapterDetail?.version.code}
+                                </Badge>
+                            </div>
                         </div>
                         <DialogTitle className="text-2xl pt-2">
                             {selectedChapterDetail?.book.name} {selectedChapterDetail?.chapter.number}
